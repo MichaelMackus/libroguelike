@@ -1,0 +1,5 @@
+valgrind-out.txt
+examples/bsp
+examples/dijkstra
+examples/floodfill
+examples/heap
