@@ -136,6 +136,9 @@ int rl_map_is_passable(RL_Map map, RL_Point point);
 // A tile is considered a wall if it is touching a passable tile.
 int rl_map_is_wall(RL_Map map, RL_Point point);
 
+// Returns a the largest connected area (of passable tiles) on the map.
+RL_PathMap rl_map_largest_connected_area(RL_Map *map);
+
 /**
  * Simple priority queue implementation
  */
@@ -187,8 +190,8 @@ int rl_bsp_is_leaf(RL_BSP *node);
 // node).
 RL_BSP *rl_bsp_sibling(RL_BSP *node);
 
-// Return a list of all leaves.
-RL_Heap rl_bsp_leaves(RL_BSP *root);
+// Return the next node to the right (at the same depth) if it exists.
+RL_BSP *rl_bsp_next_node(RL_BSP *node);
 
 /**
  * Pathfinding
@@ -506,23 +509,6 @@ int rl_bsp_is_leaf(RL_BSP *node)
     return (node->left == NULL && node->right == NULL);
 }
 
-static void rl_bsp_leaf_count_recursive(RL_BSP *node, int *count)
-{
-    if (rl_bsp_is_leaf(node))
-        *count = *count + 1;
-    if (node->left)
-        rl_bsp_leaf_count_recursive(node->left, count);
-    if (node->right)
-        rl_bsp_leaf_count_recursive(node->right, count);
-}
-static int rl_bsp_leaf_count(RL_BSP *root)
-{
-    int count = 0;
-    rl_bsp_leaf_count_recursive(root, &count);
-
-    return count;
-}
-
 RL_BSP *rl_bsp_sibling(RL_BSP *node)
 {
     if (node && node->parent) {
@@ -537,21 +523,31 @@ RL_BSP *rl_bsp_sibling(RL_BSP *node)
     return NULL;
 }
 
-void rl_bsp_leaves_recursive(RL_BSP *node, RL_Heap *heap)
+RL_BSP *rl_bsp_next_node_recursive_down(RL_BSP *node, int depth)
 {
-    if (node->left)
-        rl_bsp_leaves_recursive(node->left, heap);
-    if (node->right)
-        rl_bsp_leaves_recursive(node->right, heap);
-    if (rl_bsp_is_leaf(node))
-        rl_heap_insert(heap, node);
+    if (node == NULL)
+        return NULL;
+    if (depth == 0) // found the node
+        return node;
+    if (node->left == NULL)
+        return NULL;
+    return rl_bsp_next_node_recursive_down(node->left, depth + 1);
 }
-RL_Heap rl_bsp_leaves(RL_BSP *root)
+RL_BSP *rl_bsp_next_node_recursive(RL_BSP *node, int depth)
 {
-    RL_Heap heap = rl_heap_create(rl_bsp_leaf_count(root), NULL);
-    rl_bsp_leaves_recursive(root, &heap);
+    if (node == NULL || node->parent == NULL)
+        return NULL;
+    if (node->parent->left == node) // traverse back down
+        return rl_bsp_next_node_recursive_down(node->parent->right, depth);
+    return rl_bsp_next_node_recursive(node->parent, depth - 1);
+}
+RL_BSP *rl_bsp_next_node(RL_BSP *node)
+{
+    if (node == NULL || node->parent == NULL)
+        return NULL;
 
-    return heap;
+    // LOOP up until we are on the left, then go back down
+    return rl_bsp_next_node_recursive(node, 0);
 }
 
 static void rl_map_bsp_generate_room(RL_Map *map, int room_width, int room_height, RL_Point room_loc)
@@ -612,8 +608,6 @@ static void rl_map_bsp_generate_rooms(RL_BSP *node, RL_Map *map, int room_min_wi
 }
 
 static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root);
-static void rl_mapgen_cull_unreachable_rooms(RL_Map *map);
-static void rl_mapgen_connect_unreachable_rooms(RL_Map *map);
 RL_BSP *rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config)
 {
     rl_assert(map);
@@ -629,11 +623,9 @@ RL_BSP *rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config)
             rl_mapgen_bsp_connect_corridors(map, root);
         }
 
-        if (config.use_secret_passages) {
-            rl_mapgen_connect_unreachable_rooms(map);
-        } else {
-            rl_mapgen_cull_unreachable_rooms(map);
-        }
+        // if (config.use_secret_passages) {
+            // TODO connect secret passages
+        // }
 
         // if (config.door_tile) {
             // TODO connect doors
@@ -645,54 +637,25 @@ RL_BSP *rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config)
     return NULL;
 }
 
-static RL_PathMap rl_mapgen_floodfill_closest_passable(const RL_Map *map, const RL_BSP *node)
-{
-    RL_Point floodfill_start;
-    for (int x = node->point.x; x < node->point.x + node->width; ++x) {
-        for (int y = node->point.y; y < node->point.y + node->height; ++y) {
-            floodfill_start = RL_XY(x, y);
-            if (rl_map_is_passable(*map, floodfill_start)) break;
-        }
-        if (rl_map_is_passable(*map, floodfill_start)) break;
-    }
-
-    return rl_pathmap_create(*map, floodfill_start, NULL, rl_map_is_passable);
-}
-
-// checks if a corridor tile is connected to a room in the BSP node
-static int rl_mapgen_bsp_has_corridor(const RL_Map *map, const RL_BSP *node)
-{
-    // floodfill the room first, to ensure we don't check stray corridors
-    RL_PathMap floodfill = rl_mapgen_floodfill_closest_passable(map, node);
-    for (int x = node->point.x; x < node->width + node->point.x; ++x) {
-        for (int y = node->point.y; y < node->height + node->point.y; ++y) {
-            RL_Point p = floodfill.nodes[x + y*map->width].point;
-            if (map->tiles[p.x + p.y*map->width] == RL_TileCorridor) {
-                rl_pathmap_destroy(floodfill);
-
-                return 1;
-            }
-        }
-    }
-    rl_pathmap_destroy(floodfill);
-
-    return 0;
-}
-
-// TODO prevent carving into room walls except for destination
 static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root)
 {
     rl_assert(map && root);
 
-    RL_Heap processing = rl_bsp_leaves(root);
-    RL_BSP *node;
-    while ((node = rl_heap_pop(&processing))) {
-        RL_BSP *sibling = rl_bsp_sibling(node);
-        rl_assert(!node->parent || sibling);
-        if (sibling == NULL) continue;
+    // find deepest left-most node
+    RL_BSP *leftmost_node = root;
+    while (leftmost_node->left != NULL) {
+        leftmost_node = leftmost_node->left;
+    }
+    RL_BSP *node = leftmost_node;
+    while (node->parent) {
+        RL_BSP *sibling = rl_bsp_next_node(node);
 
-        if (rl_bsp_is_leaf(sibling) && rl_mapgen_bsp_has_corridor(map, sibling))
-            continue; // corridor already carved to sibling
+        if (sibling == NULL) {
+            // if we're at the last node in this depth, connect parents
+            node = leftmost_node->parent;
+            leftmost_node = node;
+            continue;
+        }
 
         // floodfill the rooms to find the center
         // TODO find a random point on a wall that isn't a corner
@@ -718,52 +681,69 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root)
 
         // carve out corridors
         RL_Path *path = rl_path_create(*map, dig_start, dig_end, rl_distance_manhattan, NULL, 0);
-        int consecutive_corridor_count = 0;
         while ((path = rl_path_walk(path))) {
             if (map->tiles[path->point.x + path->point.y * map->width] == RL_TileRock)
                 map->tiles[path->point.x + path->point.y * map->width] = RL_TileCorridor;
 
-            // only continue carving if neighboring corridor count < 2
-            int corridor_count = 0;
+            // prevent digging double wide corridors
             if (path->next) {
                 RL_Path *neighbor = path->next;
-                const RL_Point neighbors_neighbor_coords[8] = {
-                    (RL_Point) { neighbor->point.x + 1, neighbor->point.y },
-                    (RL_Point) { neighbor->point.x - 1, neighbor->point.y },
-                    (RL_Point) { neighbor->point.x,     neighbor->point.y + 1 },
-                    (RL_Point) { neighbor->point.x,     neighbor->point.y - 1 },
-                    (RL_Point) { neighbor->point.x + 1, neighbor->point.y + 1 },
-                    (RL_Point) { neighbor->point.x + 1, neighbor->point.y - 1 },
-                    (RL_Point) { neighbor->point.x - 1, neighbor->point.y + 1 },
-                    (RL_Point) { neighbor->point.x - 1, neighbor->point.y - 1 },
-                };
-                for (int i=0; i<4; i++) {
-                    const RL_Point neighbors_neighbor = neighbors_neighbor_coords[i];
-                    if (map->tiles[neighbors_neighbor.x + neighbors_neighbor.y * map->width] == RL_TileCorridor &&
-                        map->tiles[neighbor->point.x + neighbor->point.y * map->width] != RL_TileCorridor
+                if (neighbor->point.x != path->point.x) { // digging left<->right, check for consecutive paths up<->down
+                    RL_Point up_point    = RL_XY(path    ->point.x, path->point.y - 1);
+                    RL_Point up_point2   = RL_XY(neighbor->point.x, neighbor->point.y - 1);
+                    RL_Point down_point  = RL_XY(path    ->point.x, path->point.y + 1);
+                    RL_Point down_point2 = RL_XY(neighbor->point.x, neighbor->point.y + 1);
+
+                    if (rl_map_in_bounds(*map, up_point) && rl_map_in_bounds(*map, up_point2) &&
+                        map->tiles[up_point.x + up_point.y * map->width] == RL_TileCorridor &&
+                        map->tiles[up_point2.x + up_point2.y * map->width] == RL_TileCorridor
                     ) {
-                        ++corridor_count;
+                        rl_path_destroy(path);
+                        break;
+                    }
+                    if (rl_map_in_bounds(*map, down_point) && rl_map_in_bounds(*map, down_point2) &&
+                        map->tiles[down_point.x + down_point.y * map->width] == RL_TileCorridor &&
+                        map->tiles[down_point2.x + down_point2.y * map->width] == RL_TileCorridor
+                    ) {
+                        rl_path_destroy(path);
+                        break;
+                    }
+                } else { // digging up<->down, check for consecutive paths left<->right
+                    RL_Point left_point   = RL_XY(path    ->point.x - 1, path->point.y);
+                    RL_Point left_point2  = RL_XY(neighbor->point.x - 1, neighbor->point.y);
+                    RL_Point right_point  = RL_XY(path    ->point.x + 1, path->point.y);
+                    RL_Point right_point2 = RL_XY(neighbor->point.x + 1, neighbor->point.y);
+
+                    if (rl_map_in_bounds(*map, left_point) && rl_map_in_bounds(*map, left_point2) &&
+                        map->tiles[left_point.x + left_point.y * map->width] == RL_TileCorridor &&
+                        map->tiles[left_point2.x + left_point2.y * map->width] == RL_TileCorridor
+                    ) {
+                        rl_path_destroy(path);
+                        break;
+                    }
+                    if (rl_map_in_bounds(*map, right_point) && rl_map_in_bounds(*map, right_point2) &&
+                        map->tiles[right_point.x + right_point.y * map->width] == RL_TileCorridor &&
+                        map->tiles[right_point2.x + right_point2.y * map->width] == RL_TileCorridor
+                    ) {
+                        rl_path_destroy(path);
+                        break;
                     }
                 }
             }
-            // TODO make this smarter, sometimes paths end 1 tile too short if set to >1
-            // TODO should only check walls to the sides based on the direction we're digging
-            if (corridor_count > 1 && corridor_count >= consecutive_corridor_count) {
-                rl_path_destroy(path);
-                break;
-            }
-            consecutive_corridor_count = corridor_count;
         }
 
-        if (node->parent)
-            rl_heap_insert(&processing, node->parent);
+        // find start node for next loop iteration
+        node = rl_bsp_next_node(sibling);
+        if (node == NULL) {
+            // if we're at the last node in this depth, connect parents
+            node = leftmost_node->parent;
+            leftmost_node = leftmost_node->parent;
+        }
     }
-
-    rl_heap_destroy(&processing);
 }
 
 // TODO can use a "room index" to assign each tile a room index based on how connected it is
-static RL_PathMap rl_mapgen_largest_connected_area(RL_Map *map)
+RL_PathMap rl_map_largest_connected_area(RL_Map *map)
 {
     // int *room_indices = calloc(sizeof(*room_indices), map->width * map->height);
     RL_PathMap floodfill = { 0 };
@@ -787,29 +767,6 @@ static RL_PathMap rl_mapgen_largest_connected_area(RL_Map *map)
 }
 
 // TODO method to connect corridors "randomly" (e.g. to make the map more circular)
-
-static void rl_mapgen_connect_unreachable_rooms(RL_Map *map)
-{
-}
-
-static void rl_mapgen_cull_unreachable_rooms(RL_Map *map)
-{
-    RL_PathMap floodfill = rl_mapgen_largest_connected_area(map);
-    for (int x = 0; x < map->width; ++x) {
-        for (int y = 0; y < map->height; ++y) {
-            size_t idx = x + y*map->width;
-            RL_Tile tile = map->tiles[idx];
-            if (tile == RL_TileRoom || tile == RL_TileCorridor) {
-                // set tile to rock if not in the floodfill
-                if (floodfill.scored_count == 0 || floodfill.nodes[idx].distance == DBL_MAX) {
-                    map->tiles[idx] = RL_TileRock;
-                }
-            }
-        }
-    }
-
-    rl_pathmap_destroy(floodfill);
-}
 
 double manhattan_distance(RL_Point node, RL_Point end)
 {
