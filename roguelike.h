@@ -146,6 +146,9 @@ int rl_map_tile_is(RL_Map map, RL_Point point, RL_Tile tile);
 // tile to the south, west, and east would have a bitmask of 0b1011.
 int rl_map_wall(RL_Map map, RL_Point point);
 
+// Is this a wall that is touching a room tile?
+int rl_map_is_room_wall(RL_Map map, RL_Point point);
+
 // A wall that is touching a room tile (e.g. to display it lit).
 int rl_map_room_wall(RL_Map map, RL_Point point);
 
