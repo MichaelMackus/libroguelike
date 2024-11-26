@@ -1013,13 +1013,10 @@ RL_PathMap rl_pathmap_create(RL_Map map,
     }
 
     RL_Heap heap = rl_heap_create(map.width * map.height, &rl_pathmap_heap_comparison);
-    int *dijkstra_state = calloc(sizeof(*dijkstra_state), map.width * map.height);
-
     rl_heap_insert(&heap, &nodes[start.y * map.width + start.x]);
     RL_PathNode *current = (RL_PathNode *) rl_heap_pop(&heap);
-    int length = 1;
+    int scored_count = 1;
     while (current) {
-        dijkstra_state[current->point.y * map.width + current->point.x] = RL_NODE_STATE_VISITED;
         const RL_Point neighbor_coords[8] = {
             (RL_Point) { current->point.x + 1, current->point.y },
             (RL_Point) { current->point.x - 1, current->point.y },
@@ -1038,15 +1035,12 @@ RL_PathMap rl_pathmap_create(RL_Map map,
 
             int idx = neighbor_coords[i].y * map.width + neighbor_coords[i].x;
             double distance = current->distance + distance_f(current->point, neighbor_coords[i]);
-            if (distance < nodes[idx].distance) { // TODO should this even be necessary???
-                if (nodes[idx].distance == DBL_MAX)
-                    length++;
+            if (distance < nodes[idx].distance) {
+                if (nodes[idx].distance == DBL_MAX) {
+                    scored_count++;
+                    rl_heap_insert(&heap, &nodes[idx]);
+                }
                 nodes[idx].distance = distance;
-                dijkstra_state[idx] = dijkstra_state[idx] & RL_NODE_STATE_PROCESSING; // TODO simplify and mark as visited
-            }
-            if (!(dijkstra_state[idx] & RL_NODE_STATE_VISITED) && !(dijkstra_state[idx] & RL_NODE_STATE_PROCESSING)) {
-                dijkstra_state[idx] = RL_NODE_STATE_PROCESSING;
-                rl_heap_insert(&heap, &nodes[idx]);
             }
         }
 
@@ -1054,9 +1048,8 @@ RL_PathMap rl_pathmap_create(RL_Map map,
     }
 
     rl_heap_destroy(&heap);
-    free(dijkstra_state);
 
-    return (RL_PathMap) { length, nodes };
+    return (RL_PathMap) { scored_count, nodes };
 }
 
 void rl_pathmap_destroy(RL_PathMap path_map)
