@@ -88,10 +88,10 @@ typedef enum {
 
 // Type of wall - idea is they can be bitmasked together (e.g. for corners)
 typedef enum {
-    RL_ConnectedWest  = 0b00000001,
-    RL_ConnectedEast  = 0b00000010,
-    RL_ConnectedNorth = 0b00000100,
-    RL_ConnectedSouth = 0b00001000,
+    RL_ConnectedWest  = 1,
+    RL_ConnectedEast  = 1 << 1,
+    RL_ConnectedNorth = 1 << 2,
+    RL_ConnectedSouth = 1 << 3,
 } RL_ConnectionType;
 
 /**
@@ -554,7 +554,7 @@ RL_Heap rl_bsp_leaves(RL_BSP *root)
     return heap;
 }
 
-static void rl_map_bsp_generate_room(RL_BSP *leaf, RL_Map *map, int room_width, int room_height, RL_Point room_loc)
+static void rl_map_bsp_generate_room(RL_Map *map, int room_width, int room_height, RL_Point room_loc)
 {
     for (int x = room_loc.x; x < room_loc.x + room_width; ++x) {
         for (int y = room_loc.y; y < room_loc.y + room_height; ++y) {
@@ -585,7 +585,7 @@ static void rl_map_bsp_generate_rooms(RL_BSP *node, RL_Map *map, int room_min_wi
             room_loc.x = rl_rng_generate(leaf->point.x + room_padding, leaf->point.x + leaf->width - room_width - room_padding);
             room_loc.y = rl_rng_generate(leaf->point.y + room_padding, leaf->point.y + leaf->height - room_height - room_padding);
 
-            rl_map_bsp_generate_room(leaf, map, room_width, room_height, room_loc);
+            rl_map_bsp_generate_room(map, room_width, room_height, room_loc);
         } else {
             rl_map_bsp_generate_rooms(node->left, map, room_min_width, room_max_width, room_min_height, room_max_height, room_padding);
         }
@@ -604,7 +604,7 @@ static void rl_map_bsp_generate_rooms(RL_BSP *node, RL_Map *map, int room_min_wi
             room_loc.x = rl_rng_generate(leaf->point.x + room_padding, leaf->point.x + leaf->width - room_width - room_padding);
             room_loc.y = rl_rng_generate(leaf->point.y + room_padding, leaf->point.y + leaf->height - room_height - room_padding);
 
-            rl_map_bsp_generate_room(leaf, map, room_width, room_height, room_loc);
+            rl_map_bsp_generate_room(map, room_width, room_height, room_loc);
         } else {
             rl_map_bsp_generate_rooms(node->right, map, room_min_width, room_max_width, room_min_height, room_max_height, room_padding);
         }
@@ -762,8 +762,10 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root)
     rl_heap_destroy(&processing);
 }
 
+// TODO can use a "room index" to assign each tile a room index based on how connected it is
 static RL_PathMap rl_mapgen_largest_connected_area(RL_Map *map)
 {
+    // int *room_indices = calloc(sizeof(*room_indices), map->width * map->height);
     RL_PathMap floodfill = { 0 };
     for (int x = 0; x < map->width; ++x) {
         for (int y = 0; y < map->height; ++y) {
@@ -783,6 +785,8 @@ static RL_PathMap rl_mapgen_largest_connected_area(RL_Map *map)
 
     return floodfill;
 }
+
+// TODO method to connect corridors "randomly" (e.g. to make the map more circular)
 
 static void rl_mapgen_connect_unreachable_rooms(RL_Map *map)
 {
@@ -823,8 +827,11 @@ double euclidian_distance(RL_Point node, RL_Point end)
  * Ref: https://gist.github.com/skeeto/f012a207aff1753662b679917f706de6
  */
 
-static int rl_heap_noop_comparison_f(const void *a, const void *b)
+#define RL_UNUSED(x) (void)x
+static int rl_heap_noop_comparison_f(const void *_a, const void *_b)
 {
+    RL_UNUSED(_a);
+    RL_UNUSED(_b);
     return 1;
 }
 
@@ -874,7 +881,7 @@ int rl_heap_insert(RL_Heap *h, void *item)
     return 1;
 }
 
-static void rl_heap_remove(RL_Heap *h, void *item, int index)
+static void rl_heap_remove(RL_Heap *h, int index)
 {
     if (h == NULL) {
         rl_assert(1 != 1);
@@ -906,7 +913,7 @@ void *rl_heap_pop(RL_Heap *h)
     void *r = 0;
     if (h->len) {
         r = h->heap[0];
-        rl_heap_remove(h, r, 0);
+        rl_heap_remove(h, 0);
     }
     return r;
 }
@@ -1074,7 +1081,7 @@ RL_PathMap rl_pathmap_create(RL_Map map,
 
             int idx = neighbor_coords[i].y * map.width + neighbor_coords[i].x;
             double distance = current->distance + distance_f(current->point, neighbor_coords[i]);
-            if (distance < nodes[idx].distance) {
+            if (distance < nodes[idx].distance) { // TODO should this even be necessary???
                 if (nodes[idx].distance == DBL_MAX)
                     length++;
                 nodes[idx].distance = distance;
