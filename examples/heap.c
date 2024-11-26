@@ -41,7 +41,6 @@ int main()
 
     printf("Done\n\n");
 
-    // TODO test NULL comparison fn
     q = rl_heap_create(nodes_len, NULL);
 
     rl_heap_insert(&q, &node0);

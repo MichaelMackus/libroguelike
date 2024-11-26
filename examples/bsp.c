@@ -19,7 +19,14 @@ int main()
             RL_Tile t = map.tiles[map.width*y + x];
             switch (t) {
                 case RL_TileRock:
-                    printf(" ");
+                    ;
+                    int wall = rl_map_room_wall(map, RL_XY(x, y));
+                    if (wall & RL_WallEast || wall & RL_WallWest)
+                        printf("-");
+                    else if (wall & RL_WallSouth || wall & RL_WallNorth)
+                        printf("|");
+                    else
+                        printf(" ");
                     break;
                 case RL_TileRoom:
                     printf(".");

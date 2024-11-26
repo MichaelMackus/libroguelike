@@ -15,17 +15,7 @@ int main()
     RL_BSP *bsp = rl_mapgen_bsp(&map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 1 });
 
     int x, y;
-    RL_PathMap floodfill = rl_mapgen_largest_connected_area(&map);
-    /* for (y = 0; y < HEIGHT; ++y) { */
-    /*     for (x = 0; x < WIDTH; ++x) { */
-    /*         if (rl_map_is_passable(map, RL_XY(x, y))) { */
-    /*             floodfill = rl_floodfill_create(map, RL_XY(x, y), rl_map_is_passable); */
-    /*             break; */
-    /*         } */
-    /*     } */
-    /*     if (rl_map_is_passable(map, RL_XY(x, y))) */
-    /*         break; */
-    /* } */
+    RL_PathMap floodfill = rl_map_largest_connected_area(&map);
     for (y = 0; y < HEIGHT; ++y) {
         for (x = 0; x < WIDTH; ++x) {
             RL_Tile t = map.tiles[map.width*y + x];
