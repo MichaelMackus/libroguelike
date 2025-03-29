@@ -15,7 +15,7 @@ int main()
     RL_BSP *bsp = rl_mapgen_bsp(&map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 1 });
 
     int x, y;
-    RL_PathMap floodfill = rl_map_largest_connected_area(&map);
+    RL_Graph floodfill = rl_map_largest_connected_area(&map);
     for (y = 0; y < HEIGHT; ++y) {
         for (x = 0; x < WIDTH; ++x) {
             RL_Tile t = map.tiles[map.width*y + x];
@@ -38,7 +38,7 @@ int main()
     }
     for (y = 0; y < HEIGHT; ++y) {
         for (x = 0; x < WIDTH; ++x) {
-            if (floodfill.nodes[x + y*WIDTH].distance < DBL_MAX) {
+            if (floodfill.nodes[x + y*WIDTH].score < DBL_MAX) {
                 printf("*");
             } else {
                 printf(" ");
@@ -49,7 +49,7 @@ int main()
 
     rl_map_destroy(map);
     rl_bsp_destroy(bsp);
-    rl_pathmap_destroy(floodfill);
+    rl_graph_destroy(floodfill);
 
     printf("Done\n");
 
