@@ -227,7 +227,7 @@ double rl_distance_euclidian(RL_Point node, RL_Point end);
 // Custom heuristic function for pathfinding - calculates distance between map nodes
 typedef double (*RL_DistanceFun)(RL_Point from, RL_Point to);
 
-// Custom passable function for pathfinding. If not sure, pass rl_map_is_passable.
+// Custom passable function for pathfinding
 typedef int (*RL_PassableFun)(RL_Map map, RL_Point point);
 
 // Find a path between start and end via Dijkstra algorithm. Make sure to call rl_path_destroy when done with path.
@@ -242,7 +242,8 @@ RL_Path *rl_path_walk(RL_Path *path);
 void rl_path_destroy(RL_Path *path);
 
 // Dijkstra pathfinding algorithm. Pass NULL to distance_f to use rough approximation for euclidian. Make sure to
-// destroy it with rl_graph_destroy. Pass NULL to passable_f to pass through impassable tiles.
+// destroy it with rl_graph_destroy. Pass NULL to passable_f to pass through impassable tiles, otherwise pass
+// rl_map_is_passable for the default.
 //
 // You can use Dijkstra maps for pathfinding, simple AI, and much more. For example, by setting the player point to
 // "start" then you can pick the highest scored tile in the map and set that as the new "start" point. As with all
@@ -252,14 +253,6 @@ RL_Graph rl_dijkstra_create(RL_Map map,
                             RL_Point start,
                             RL_DistanceFun distance_f,
                             RL_PassableFun passable_f);
-
-// Custom neighbor function for pathfinding
-//
-// from - the start point
-// neighbors - a pointer is passed to an array of points that should be populated by the function
-// neighbor_count - a pointer is passed to an int that should be populated by the function - *MUST* be less than RL_MAX_NEIGHBOR_COUNT
-// user_data - passed in from path-mapping functions (e.g. to refer to world map)
-typedef void (*RL_NeighborFun)(RL_Point from, RL_Point **neighbors, int *neighbor_count, const void *user_data);
 
 // Dijkstra pathfinding algorithm. Uses RL_Graph so that your code doesn't need to rely on RL_Map. Each node's
 // distance should equal DBL_MAX if it is impassable.
@@ -343,8 +336,6 @@ int rl_map_in_bounds(RL_Map map, RL_Point point)
     return point.x >= 0 && point.y >= 0 && point.x < map.width && point.y < map.height;
 }
 
-#ifndef RL_PASSABLE_F
-#define RL_PASSABLE_F
 int rl_map_is_passable(RL_Map map, RL_Point point)
 {
     if (rl_map_in_bounds(map, point)) {
@@ -353,7 +344,6 @@ int rl_map_is_passable(RL_Map map, RL_Point point)
 
     return 0;
 }
-#endif
 
 RL_Tile *rl_map_tile(RL_Map map, RL_Point point)
 {
