@@ -3,3 +3,4 @@ examples/bsp
 examples/dijkstra
 examples/floodfill
 examples/heap
+examples/path
