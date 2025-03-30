@@ -220,7 +220,7 @@ RL_BSP *rl_bsp_next_node(RL_BSP *node);
 // Useful heuristic functions for pathfinding.
 double rl_distance_manhattan(RL_Point node, RL_Point end);
 double rl_distance_euclidian(RL_Point node, RL_Point end);
-// TODO Chebyshev distance ("chessboard distance")
+double rl_distance_chebyshev(RL_Point node, RL_Point end);
 
 // Custom heuristic function for pathfinding - calculates distance between map nodes
 typedef double (*RL_DistanceFun)(RL_Point from, RL_Point to);
@@ -1028,6 +1028,14 @@ double rl_distance_euclidian(RL_Point node, RL_Point end)
     return sqrt(distance_x * distance_x + distance_y * distance_y);
 }
 
+double rl_distance_chebyshev(RL_Point node, RL_Point end)
+{
+    double distance_x = fabs(node.x - end.x);
+    double distance_y = fabs(node.y - end.y);
+
+    return distance_x > distance_y ? distance_x : distance_y;
+}
+
 RL_Path *rl_path_create(const RL_Map *map, RL_Point start, RL_Point end, RL_DistanceFun distance_f, RL_PassableFun passable_f, int allow_diagonals)
 {
     RL_Graph graph = rl_dijkstra_create(map, end, distance_f, passable_f);
@@ -1053,10 +1061,10 @@ RL_Path *rl_path_create(const RL_Map *map, RL_Point start, RL_Point end, RL_Dist
         RL_GraphNode *lowest_neighbor = NULL;
         for (size_t i=0; i<node->neighbors_length; i++) {
             RL_GraphNode *neighbor = node->neighbors[i];
-            if (!allow_diagonals && distance_f(node->point, neighbor->point) > 1) {
+            if (!allow_diagonals && rl_distance_simple(node->point, neighbor->point) > 1) {
                 continue;
             }
-            if (rl_map_in_bounds(map, neighbor->point) && (!lowest_neighbor || neighbor->score < node->score)) {
+            if (rl_map_in_bounds(map, neighbor->point) && (!lowest_neighbor || neighbor->score < lowest_neighbor->score)) {
                 lowest_neighbor = neighbor;
             }
         }
@@ -1076,9 +1084,7 @@ RL_Path *rl_path_create(const RL_Map *map, RL_Point start, RL_Point end, RL_Dist
 
 RL_Path *rl_path_walk(RL_Path *path)
 {
-    rl_assert(path);
     if (!path) return NULL;
-
     RL_Path *next = path->next;
     free(path);
 

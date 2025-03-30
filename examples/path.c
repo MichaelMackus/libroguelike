@@ -21,6 +21,7 @@ int main()
 
     RL_Point start = { rl_rng_generate(0, MAP_WIDTH - 1), rl_rng_generate(0, MAP_HEIGHT - 1) };
     RL_Point end = { rl_rng_generate(0, MAP_WIDTH - 1), rl_rng_generate(0, MAP_HEIGHT - 1) };
+    printf("S: (%d, %d) | E: (%d, %d)\n", (int)start.x, (int)start.y, (int)end.x, (int)end.y);
     RL_Path *path = rl_path_create(&map, start, end, rl_distance_manhattan, NULL, 0);
     while ((path = rl_path_walk(path))) {
         print_at(path->point.x, path->point.y, '*');
@@ -29,7 +30,7 @@ int main()
     print_at(end.x, end.y, 'x');
     print_at(0, map.height, '\n');
     int offset_y = MAP_HEIGHT + 2;
-    path = rl_path_create(&map, start, end, rl_distance_manhattan, NULL, 1);
+    path = rl_path_create(&map, start, end, rl_distance_euclidian, NULL, 1);
     while ((path = rl_path_walk(path))) {
         print_at(path->point.x, path->point.y + offset_y, '*');
     }
