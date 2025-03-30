@@ -1050,19 +1050,20 @@ RL_Path *rl_path_create(const RL_Map *map, RL_Point start, RL_Point end, RL_Dist
         distance_f = rl_distance_simple;
     }
     while (node->point.x != end.x || node->point.y != end.y) {
-        RL_GraphNode *prev_node = node;
+        RL_GraphNode *lowest_neighbor = NULL;
         for (size_t i=0; i<node->neighbors_length; i++) {
             RL_GraphNode *neighbor = node->neighbors[i];
-            if (!allow_diagonals && distance_f(prev_node->point, neighbor->point) > 1) {
+            if (!allow_diagonals && distance_f(node->point, neighbor->point) > 1) {
                 continue;
             }
-            if (rl_map_in_bounds(map, neighbor->point) && neighbor->score < node->score) {
-                node = neighbor;
+            if (rl_map_in_bounds(map, neighbor->point) && (!lowest_neighbor || neighbor->score < node->score)) {
+                lowest_neighbor = neighbor;
             }
         }
-        if (node->score == DBL_MAX || node == prev_node) {
+        if (!lowest_neighbor || lowest_neighbor->score == DBL_MAX || node == lowest_neighbor) {
             break; // no path found
         }
+        node = lowest_neighbor;
         path->next = rl_path(node->point);
         rl_assert(path->next);
         path = path->next;
