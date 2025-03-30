@@ -69,14 +69,11 @@ typedef enum {
 
 // Type of wall - idea is they can be bitmasked together (e.g. for corners)
 typedef enum {
-    RL_WallWest  = 1,
-    RL_WallEast  = 1 << 1,
-    RL_WallNorth = 1 << 2,
-    RL_WallSouth = 1 << 3,
-    RL_WallNE    = 1 << 4,
-    RL_WallNW    = 1 << 5,
-    RL_WallSE    = 1 << 6,
-    RL_WallSW    = 1 << 7,
+    RL_WallToWest  = 1,
+    RL_WallToEast  = 1 << 1,
+    RL_WallToNorth = 1 << 2,
+    RL_WallToSouth = 1 << 3,
+    RL_WallOther          = 1 << 7, // e.g. a wall that has no connecting walls
 } RL_Wall;
 
 // Represents a graph of nodes that has been scored for pathfinding (e.g. with the Dijkstra algorithm).
@@ -376,22 +373,14 @@ int rl_map_wall(const RL_Map *map, RL_Point point)
     if (!rl_map_is_wall(map, point))
         return mask;
     if (rl_map_is_wall(map, RL_XY(point.x + 1, point.y)))
-        mask |= RL_WallEast;
+        mask |= RL_WallToEast;
     if (rl_map_is_wall(map, RL_XY(point.x - 1, point.y)))
-        mask |= RL_WallWest;
+        mask |= RL_WallToWest;
     if (rl_map_is_wall(map, RL_XY(point.x,     point.y - 1)))
-        mask |= RL_WallNorth;
+        mask |= RL_WallToNorth;
     if (rl_map_is_wall(map, RL_XY(point.x,     point.y + 1)))
-        mask |= RL_WallSouth;
-    if (rl_map_is_wall(map, RL_XY(point.x + 1, point.y - 1)))
-        mask |= RL_WallNE;
-    if (rl_map_is_wall(map, RL_XY(point.x - 1, point.y - 1)))
-        mask |= RL_WallNW;
-    if (rl_map_is_wall(map, RL_XY(point.x + 1, point.y + 1)))
-        mask |= RL_WallSE;
-    if (rl_map_is_wall(map, RL_XY(point.x - 1, point.y + 1)))
-        mask |= RL_WallSW;
-    return mask;
+        mask |= RL_WallToSouth;
+    return mask ? mask : RL_WallOther;
 }
 
 int rl_map_tile_is(const RL_Map *map, RL_Point point, RL_Tile tile)
@@ -423,22 +412,14 @@ int rl_map_room_wall(const RL_Map *map, RL_Point point)
     if (!rl_map_is_room_wall(map, point))
         return mask;
     if (rl_map_is_room_wall(map, RL_XY(point.x + 1, point.y)))
-        mask |= RL_WallEast;
+        mask |= RL_WallToEast;
     if (rl_map_is_room_wall(map, RL_XY(point.x - 1, point.y)))
-        mask |= RL_WallWest;
+        mask |= RL_WallToWest;
     if (rl_map_is_room_wall(map, RL_XY(point.x,     point.y - 1)))
-        mask |= RL_WallNorth;
+        mask |= RL_WallToNorth;
     if (rl_map_is_room_wall(map, RL_XY(point.x,     point.y + 1)))
-        mask |= RL_WallSouth;
-    if (rl_map_is_room_wall(map, RL_XY(point.x + 1, point.y - 1)))
-        mask |= RL_WallNE;
-    if (rl_map_is_room_wall(map, RL_XY(point.x - 1, point.y - 1)))
-        mask |= RL_WallNW;
-    if (rl_map_is_room_wall(map, RL_XY(point.x + 1, point.y + 1)))
-        mask |= RL_WallSE;
-    if (rl_map_is_room_wall(map, RL_XY(point.x - 1, point.y + 1)))
-        mask |= RL_WallSW;
-    return mask;
+        mask |= RL_WallToSouth;
+    return mask ? mask : RL_WallOther;
 }
 
 #ifndef RL_RAND_F

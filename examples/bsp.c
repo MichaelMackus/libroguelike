@@ -21,10 +21,12 @@ int main()
                 case RL_TileRock:
                     ;
                     int wall = rl_map_room_wall(&map, RL_XY(x, y));
-                    if (wall & RL_WallEast || wall & RL_WallWest)
+                    if (wall & RL_WallToEast || wall & RL_WallToWest)
                         printf("-");
-                    else if (wall & RL_WallSouth || wall & RL_WallNorth)
+                    else if (wall & RL_WallToSouth || wall & RL_WallToNorth)
                         printf("|");
+                    else if (wall)
+                        printf("+");
                     else
                         printf(" ");
                     break;
