@@ -256,8 +256,6 @@ RL_Graph rl_dijkstra_create(const RL_Map *map,
 // distance should equal DBL_MAX if it is impassable.
 //
 // Make sure to destroy the resulting path map with rl_graph_destroy.
-//
-// user_data gets passed into neighbor_f and should probably contain your custom map and any relevant data for pathfinding
 void rl_dijkstra_score(RL_Graph *graph, RL_Point start, RL_DistanceFun distance_f);
 
 // Create an unscored graph based on the 2d map. Make sure to call rl_graph_destroy when finished.
