@@ -11,7 +11,7 @@ int main()
 {
     rl_rng_seed(time(0));
     RL_Map map = rl_map_create(WIDTH, HEIGHT);
-    RL_BSP *bsp = rl_mapgen_bsp(&map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 0 });
+    RL_BSP bsp = rl_mapgen_bsp(&map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 0 });
 
     int x, y;
     for (y = 0; y < HEIGHT; ++y) {
@@ -20,7 +20,7 @@ int main()
             switch (t) {
                 case RL_TileRock:
                     ;
-                    int wall = rl_map_room_wall(map, RL_XY(x, y));
+                    int wall = rl_map_room_wall(&map, RL_XY(x, y));
                     if (wall & RL_WallEast || wall & RL_WallWest)
                         printf("-");
                     else if (wall & RL_WallSouth || wall & RL_WallNorth)
@@ -42,8 +42,8 @@ int main()
         printf("\n");
     }
 
-    rl_map_destroy(map);
-    rl_bsp_destroy(bsp);
+    rl_map_destroy(&map);
+    rl_bsp_destroy(&bsp);
 
     return 0;
 }

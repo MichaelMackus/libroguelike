@@ -39,17 +39,15 @@ typedef enum {
 } RL_Tile;
 
 // Generic dungeon map structure, supporting hex & square 2d maps
-typedef struct RL_2DMap {
+typedef struct RL_Map {
     int width;
     int height;
     RL_Tile *tiles; // 2d array of Width*Height for 2d square map - by default 0 is the impassable/rock tile
-} RL_2DMap;
-typedef RL_2DMap RL_Map;
+} RL_Map;
 
 typedef struct RL_Point {
     double x, y;
 } RL_Point;
-
 #define RL_XY(x, y) (RL_Point) { (double)x, (double)y }
 
 // BSP tree
@@ -109,11 +107,11 @@ typedef struct RL_Path {
 // must be positive). Make sure to call rl_map_destroy to clear memory.
 RL_Map rl_map_create(int width, int height);
 
-// Frees map tile memory.
-void rl_map_destroy(RL_Map map);
+// Initialize map & allocates map->tiles if NULL. Called implicitly by rl_map_create.
+void rl_map_init(RL_Map *map, int width, int height);
 
-// Allocate map->tiles and zero out the memory. Note: map->tiles must be NULL.
-void rl_map_populate(RL_Map *map);
+// Frees map tile memory.
+void rl_map_destroy(RL_Map *map);
 
 typedef struct {
     int room_min_width;
@@ -127,39 +125,39 @@ typedef struct {
 } RL_MapgenConfigBSP;
 
 // Generate map rooms with BSP split algorithm & connects corridors. Make sure to free the BSP with rl_bsp_destroy.
-RL_BSP *rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config);
+RL_BSP rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config);
 
 /**
  * Generic map helper functions.
  */
 
 // Verifies a coordinates is within bounds of map.
-int rl_map_in_bounds(RL_Map map, RL_Point point);
+int rl_map_in_bounds(const RL_Map *map, RL_Point point);
 
 // Checks if a tile is passable. Define RL_PASSABLE_F to define a custom
 // function definition for pathfinding.
-int rl_map_is_passable(RL_Map map, RL_Point point);
+int rl_map_is_passable(const RL_Map *map, RL_Point point);
 
 // Get tile at point
-RL_Tile *rl_map_tile(RL_Map map, RL_Point point);
+RL_Tile *rl_map_tile(const RL_Map *map, RL_Point point);
 
 // Returns 1 if tile at point matches given parameter.
-int rl_map_tile_is(RL_Map map, RL_Point point, RL_Tile tile);
+int rl_map_tile_is(const RL_Map *map, RL_Point point, RL_Tile tile);
 
 // A tile is considered a wall if it is touching a passable tile.
 //
 // Returns a bitmask of the RL_Wall enum. For example, a wall with a wall
 // tile to the south, west, and east would have a bitmask of 0b1011.
-int rl_map_wall(RL_Map map, RL_Point point);
+int rl_map_wall(const RL_Map *map, RL_Point point);
 
 // Is this a wall that is touching a room tile?
-int rl_map_is_room_wall(RL_Map map, RL_Point point);
+int rl_map_is_room_wall(const RL_Map *map, RL_Point point);
 
 // A wall that is touching a room tile (e.g. to display it lit).
-int rl_map_room_wall(RL_Map map, RL_Point point);
+int rl_map_room_wall(const RL_Map *map, RL_Point point);
 
 // Returns a the largest connected area (of passable tiles) on the map.
-RL_Graph rl_map_largest_connected_area(RL_Map *map);
+RL_Graph rl_map_largest_connected_area(const RL_Map *map);
 
 /**
  * Simple priority queue implementation
@@ -194,7 +192,7 @@ void *rl_heap_pop(RL_Heap *h);
  */
 
 // Params width & height must be positive.
-RL_BSP *rl_bsp_create(int width, int height);
+RL_BSP rl_bsp_create(int width, int height);
 void rl_bsp_destroy(RL_BSP *root);
 
 // Split the BSP by direction - this creates the left & right leaf and
@@ -228,11 +226,11 @@ double rl_distance_euclidian(RL_Point node, RL_Point end);
 typedef double (*RL_DistanceFun)(RL_Point from, RL_Point to);
 
 // Custom passable function for pathfinding
-typedef int (*RL_PassableFun)(RL_Map map, RL_Point point);
+typedef int (*RL_PassableFun)(const RL_Map *map, RL_Point point);
 
 // Find a path between start and end via Dijkstra algorithm. Make sure to call rl_path_destroy when done with path.
 // Pass NULL to distance_f to use rough approximation for euclidian.
-RL_Path *rl_path_create(RL_Map map, RL_Point start, RL_Point end, RL_DistanceFun distance_f, RL_PassableFun passable_f, int allow_diagonals);
+RL_Path *rl_path_create(const RL_Map *map, RL_Point start, RL_Point end, RL_DistanceFun distance_f, RL_PassableFun passable_f, int allow_diagonals);
 
 // Convenience function to "walk" the path. This will return the next path, freeing the current path. You do not need to
 // call rl_path_destroy if you walk the full path.
@@ -249,7 +247,7 @@ void rl_path_destroy(RL_Path *path);
 // "start" then you can pick the highest scored tile in the map and set that as the new "start" point. As with all
 // Dijkstra maps, you just walk the map by picking the highest scored neighbor. This is a simplistic AI resembling a
 // wounded NPC fleeing from the player.
-RL_Graph rl_dijkstra_create(RL_Map map,
+RL_Graph rl_dijkstra_create(const RL_Map *map,
                             RL_Point start,
                             RL_DistanceFun distance_f,
                             RL_PassableFun passable_f);
@@ -263,10 +261,10 @@ RL_Graph rl_dijkstra_create(RL_Map map,
 void rl_dijkstra_score(RL_Graph *graph, RL_Point start, RL_DistanceFun distance_f);
 
 // Create an unscored graph based on the 2d map. Make sure to call rl_graph_destroy when finished.
-RL_Graph rl_graph_create(RL_Map map, RL_PassableFun passable_f);
+RL_Graph rl_graph_create(const RL_Map *map, RL_PassableFun passable_f);
 
 // Free path map memory.
-void rl_graph_destroy(RL_Graph graph);
+void rl_graph_destroy(RL_Graph *graph);
 
 /**
  * Random number generation
@@ -305,56 +303,55 @@ unsigned long rl_rng_generate(unsigned long min, unsigned long max);
 
 RL_Map rl_map_create(int width, int height)
 {
+    RL_Map map = { 0 };
     rl_assert(width > 0 && height > 0);
-
-    RL_Map map = {
-        .width = width,
-        .height = height,
-        .tiles = NULL
-    };
-
-    rl_map_populate(&map);
+    rl_map_init(&map, width, height);
 
     return map;
 }
 
-void rl_map_destroy(RL_Map map)
+void rl_map_destroy(RL_Map *map)
 {
-    if (map.tiles)
-        free(map.tiles);
+    if (map && map->tiles) {
+        free(map->tiles);
+        map->tiles = NULL;
+    }
 }
 
-void rl_map_populate(RL_Map *map)
+void rl_map_init(RL_Map *map, int width, int height)
 {
+    rl_assert(map);
+    map->width = width;
+    map->height = height;
     if (map && map->tiles == NULL) {
         map->tiles = calloc(map->width * map->height, sizeof(*map->tiles));
     }
 }
 
-int rl_map_in_bounds(RL_Map map, RL_Point point)
+int rl_map_in_bounds(const RL_Map *map, RL_Point point)
 {
-    return point.x >= 0 && point.y >= 0 && point.x < map.width && point.y < map.height;
+    return point.x >= 0 && point.y >= 0 && point.x < map->width && point.y < map->height;
 }
 
-int rl_map_is_passable(RL_Map map, RL_Point point)
+int rl_map_is_passable(const RL_Map *map, RL_Point point)
 {
     if (rl_map_in_bounds(map, point)) {
-        return map.tiles[(int)point.y * map.width + (int)point.x] != RL_TileRock;
+        return map->tiles[(int)point.y * map->width + (int)point.x] != RL_TileRock;
     }
 
     return 0;
 }
 
-RL_Tile *rl_map_tile(RL_Map map, RL_Point point)
+RL_Tile *rl_map_tile(const RL_Map *map, RL_Point point)
 {
     if (rl_map_in_bounds(map, point)) {
-        return &map.tiles[(int)point.x + (int)point.y*map.width];
+        return &map->tiles[(int)point.x + (int)point.y*map->width];
     }
 
     return NULL;
 }
 
-int rl_map_is_wall(RL_Map map, RL_Point point)
+int rl_map_is_wall(const RL_Map *map, RL_Point point)
 {
     int y = point.y;
     int x = point.x;
@@ -375,7 +372,7 @@ int rl_map_is_wall(RL_Map map, RL_Point point)
 }
 
 // TODO check for doors
-int rl_map_wall(RL_Map map, RL_Point point)
+int rl_map_wall(const RL_Map *map, RL_Point point)
 {
     int mask = 0;
     if (!rl_map_is_wall(map, point))
@@ -399,13 +396,13 @@ int rl_map_wall(RL_Map map, RL_Point point)
     return mask;
 }
 
-int rl_map_tile_is(RL_Map map, RL_Point point, RL_Tile tile)
+int rl_map_tile_is(const RL_Map *map, RL_Point point, RL_Tile tile)
 {
     if (!rl_map_in_bounds(map, point)) return 0;
-    return map.tiles[(int)point.x + (int)point.y*map.width] == tile;
+    return map->tiles[(int)point.x + (int)point.y*map->width] == tile;
 }
 
-int rl_map_is_room_wall(RL_Map map, RL_Point point)
+int rl_map_is_room_wall(const RL_Map *map, RL_Point point)
 {
     int y = point.y;
     int x = point.x;
@@ -422,7 +419,7 @@ int rl_map_is_room_wall(RL_Map map, RL_Point point)
            rl_map_tile_is(map, (RL_Point){ x - 1, y + 1 }, RL_TileRoom);
 }
 
-int rl_map_room_wall(RL_Map map, RL_Point point)
+int rl_map_room_wall(const RL_Map *map, RL_Point point)
 {
     int mask = 0;
     if (!rl_map_is_room_wall(map, point))
@@ -469,34 +466,26 @@ void rl_rng_destroy()
 }
 #endif
 
-RL_BSP *rl_bsp_create(int width, int height)
+RL_BSP rl_bsp_create(int width, int height)
 {
     rl_assert(width > 0 && height > 0);
 
-    if (width <= 0 || height <= 0)
-        return NULL;
-
-    RL_BSP *bsp = calloc(1, sizeof(RL_BSP));
-    if (bsp == NULL)
-        return NULL;
-
-    bsp->width = width;
-    bsp->height = height;
-
-    return bsp;
+    return (RL_BSP) { .width = width, .height = height };
 }
 void rl_bsp_destroy(RL_BSP* root)
 {
-    if (root->left) {
-        rl_bsp_destroy(root->left);
-        root->left = NULL;
+    if (root) {
+        if (root->left) {
+            rl_bsp_destroy(root->left);
+            free(root->left);
+            root->left = NULL;
+        }
+        if (root->right) {
+            rl_bsp_destroy(root->right);
+            free(root->right);
+            root->right = NULL;
+        }
     }
-    if (root->right) {
-        rl_bsp_destroy(root->right);
-        root->right = NULL;
-    }
-    if (!root->left && !root->right)
-        free(root);
 }
 
 void rl_bsp_split(RL_BSP *node, int position, RL_SplitDirection direction)
@@ -725,33 +714,29 @@ static void rl_map_bsp_generate_rooms(RL_BSP *node, RL_Map *map, int room_min_wi
 }
 
 static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root);
-RL_BSP *rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config)
+RL_BSP rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config)
 {
     rl_assert(map);
     rl_assert(config.room_min_width > 0 && config.room_max_width >= config.room_min_width && config.room_min_height > 0 && config.room_max_height >= config.room_min_height && config.room_padding >= 0);
 
-    if (map) {
-        RL_BSP *root = rl_bsp_create(map->width, map->height);
+    RL_BSP root = rl_bsp_create(map->width, map->height);
 
-        rl_bsp_recursive_split(root, config.room_max_width + config.room_padding, config.room_max_height + config.room_padding, RL_MAPGEN_MAX_RECURSION);
-        rl_map_bsp_generate_rooms(root, map, config.room_min_width, config.room_max_width, config.room_min_height, config.room_max_height, config.room_padding);
+    rl_bsp_recursive_split(&root, config.room_max_width + config.room_padding, config.room_max_height + config.room_padding, RL_MAPGEN_MAX_RECURSION);
+    rl_map_bsp_generate_rooms(&root, map, config.room_min_width, config.room_max_width, config.room_min_height, config.room_max_height, config.room_padding);
 
-        if (config.draw_corridors) {
-            rl_mapgen_bsp_connect_corridors(map, root);
-        }
-
-        // if (config.use_secret_passages) {
-            // TODO connect secret passages
-        // }
-
-        // if (config.door_tile) {
-            // TODO connect doors
-        // }
-
-        return root;
+    if (config.draw_corridors) {
+        rl_mapgen_bsp_connect_corridors(map, &root);
     }
 
-    return NULL;
+    // if (config.use_secret_passages) {
+        // TODO connect secret passages
+    // }
+
+    // if (config.door_tile) {
+        // TODO connect doors
+    // }
+
+    return root;
 }
 
 static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root)
@@ -779,27 +764,27 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root)
         RL_Point dig_start;
         for (int x = node->x; x < node->width + node->x; ++x) {
             for (int y = node->y; y < node->height + node->y; ++y) {
-                if (rl_map_is_passable(*map, RL_XY(x, y))) {
+                if (rl_map_is_passable(map, RL_XY(x, y))) {
                     dig_start = RL_XY(x, y);
                 }
             }
         }
-        rl_assert(rl_map_is_passable(*map, dig_start));
+        rl_assert(rl_map_is_passable(map, dig_start));
         RL_Point dig_end;
         for (int x = sibling->x; x < sibling->width + sibling->x; ++x) {
             for (int y = sibling->y; y < sibling->height + sibling->y; ++y) {
-                if (rl_map_is_passable(*map, RL_XY(x, y))) {
+                if (rl_map_is_passable(map, RL_XY(x, y))) {
                     dig_end = RL_XY(x, y);
                 }
             }
         }
-        rl_assert(rl_map_is_passable(*map, dig_end));
+        rl_assert(rl_map_is_passable(map, dig_end));
         rl_assert(!(dig_start.x == dig_end.x && dig_start.y == dig_end.y));
 
         // carve out corridors
-        RL_Path *path = rl_path_create(*map, dig_start, dig_end, rl_distance_manhattan, NULL, 0);
+        RL_Path *path = rl_path_create(map, dig_start, dig_end, rl_distance_manhattan, NULL, 0);
         while ((path = rl_path_walk(path))) {
-            if (rl_map_tile_is(*map, path->point, RL_TileRock))
+            if (rl_map_tile_is(map, path->point, RL_TileRock))
                 map->tiles[(int)path->point.x + (int)path->point.y * map->width] = RL_TileCorridor;
 
             // prevent digging double wide corridors
@@ -811,16 +796,16 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root)
                     RL_Point down_point  = RL_XY(path    ->point.x, path->point.y + 1);
                     RL_Point down_point2 = RL_XY(neighbor->point.x, neighbor->point.y + 1);
 
-                    if (rl_map_in_bounds(*map, up_point) && rl_map_in_bounds(*map, up_point2) &&
-                        rl_map_tile_is(*map, up_point, RL_TileCorridor) &&
-                        rl_map_tile_is(*map, up_point2, RL_TileCorridor)
+                    if (rl_map_in_bounds(map, up_point) && rl_map_in_bounds(map, up_point2) &&
+                        rl_map_tile_is(map, up_point, RL_TileCorridor) &&
+                        rl_map_tile_is(map, up_point2, RL_TileCorridor)
                     ) {
                         rl_path_destroy(path);
                         break;
                     }
-                    if (rl_map_in_bounds(*map, down_point) && rl_map_in_bounds(*map, down_point2) &&
-                        rl_map_tile_is(*map, down_point, RL_TileCorridor) &&
-                        rl_map_tile_is(*map, down_point2, RL_TileCorridor)
+                    if (rl_map_in_bounds(map, down_point) && rl_map_in_bounds(map, down_point2) &&
+                        rl_map_tile_is(map, down_point, RL_TileCorridor) &&
+                        rl_map_tile_is(map, down_point2, RL_TileCorridor)
                     ) {
                         rl_path_destroy(path);
                         break;
@@ -831,16 +816,16 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root)
                     RL_Point right_point  = RL_XY(path    ->point.x + 1, path->point.y);
                     RL_Point right_point2 = RL_XY(neighbor->point.x + 1, neighbor->point.y);
 
-                    if (rl_map_in_bounds(*map, left_point) && rl_map_in_bounds(*map, left_point2) &&
-                        rl_map_tile_is(*map, left_point, RL_TileCorridor) &&
-                        rl_map_tile_is(*map, left_point2, RL_TileCorridor)
+                    if (rl_map_in_bounds(map, left_point) && rl_map_in_bounds(map, left_point2) &&
+                        rl_map_tile_is(map, left_point, RL_TileCorridor) &&
+                        rl_map_tile_is(map, left_point2, RL_TileCorridor)
                     ) {
                         rl_path_destroy(path);
                         break;
                     }
-                    if (rl_map_in_bounds(*map, right_point) && rl_map_in_bounds(*map, right_point2) &&
-                        rl_map_tile_is(*map, right_point, RL_TileCorridor) &&
-                        rl_map_tile_is(*map, right_point2, RL_TileCorridor)
+                    if (rl_map_in_bounds(map, right_point) && rl_map_in_bounds(map, right_point2) &&
+                        rl_map_tile_is(map, right_point, RL_TileCorridor) &&
+                        rl_map_tile_is(map, right_point2, RL_TileCorridor)
                     ) {
                         rl_path_destroy(path);
                         break;
@@ -859,7 +844,7 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root)
     }
 }
 
-RL_Graph rl_map_largest_connected_area(RL_Map *map)
+RL_Graph rl_map_largest_connected_area(const RL_Map *map)
 {
     int *visited = calloc(sizeof(*visited), map->width * map->height);
     rl_assert(visited);
@@ -867,8 +852,8 @@ RL_Graph rl_map_largest_connected_area(RL_Map *map)
     int floodfill_scored = 0;
     for (int x = 0; x < map->width; ++x) {
         for (int y = 0; y < map->height; ++y) {
-            if (rl_map_is_passable(*map, RL_XY(x, y)) && !visited[x + y*map->width]) {
-                RL_Graph test = rl_dijkstra_create(*map, RL_XY(x, y), NULL, rl_map_is_passable);
+            if (rl_map_is_passable(map, RL_XY(x, y)) && !visited[x + y*map->width]) {
+                RL_Graph test = rl_dijkstra_create(map, RL_XY(x, y), NULL, rl_map_is_passable);
                 int test_scored = 0;
                 for (size_t i = 0; i < test.length; i++) {
                     if (test.nodes[i].score != DBL_MAX) {
@@ -878,10 +863,10 @@ RL_Graph rl_map_largest_connected_area(RL_Map *map)
                 }
                 if (test_scored > floodfill_scored) {
                     floodfill_scored = test_scored;
-                    rl_graph_destroy(floodfill);
+                    rl_graph_destroy(&floodfill);
                     floodfill = test;
                 } else {
-                    rl_graph_destroy(test);
+                    rl_graph_destroy(&test);
                 }
             }
         }
@@ -932,7 +917,7 @@ RL_Heap rl_heap_create(int capacity, int (*comparison_f)(const void *heap_item_a
 
 void rl_heap_destroy(RL_Heap *h)
 {
-    if (h->heap) {
+    if (h && h->heap) {
         free(h->heap);
         h->heap = NULL;
     }
@@ -1043,7 +1028,7 @@ double rl_distance_euclidian(RL_Point node, RL_Point end)
     return sqrt(distance_x * distance_x + distance_y * distance_y);
 }
 
-RL_Path *rl_path_create(RL_Map map, RL_Point start, RL_Point end, RL_DistanceFun distance_f, RL_PassableFun passable_f, int allow_diagonals)
+RL_Path *rl_path_create(const RL_Map *map, RL_Point start, RL_Point end, RL_DistanceFun distance_f, RL_PassableFun passable_f, int allow_diagonals)
 {
     RL_Graph graph = rl_dijkstra_create(map, end, distance_f, passable_f);
     RL_Path *path = rl_path(start);
@@ -1057,7 +1042,7 @@ RL_Path *rl_path_create(RL_Map map, RL_Point start, RL_Point end, RL_DistanceFun
         }
     }
     if (node == NULL) {
-        rl_graph_destroy(graph);
+        rl_graph_destroy(&graph);
 
         return path;
     }
@@ -1083,7 +1068,7 @@ RL_Path *rl_path_create(RL_Map map, RL_Point start, RL_Point end, RL_DistanceFun
         path = path->next;
     }
 
-    rl_graph_destroy(graph);
+    rl_graph_destroy(&graph);
 
     return path_start;
 }
@@ -1101,18 +1086,19 @@ RL_Path *rl_path_walk(RL_Path *path)
 
 void rl_path_destroy(RL_Path *path)
 {
-    rl_assert(path);
-    while ((path = rl_path_walk(path))) {}
+    if (path) {
+        while ((path = rl_path_walk(path))) {}
+    }
 }
 
-RL_Graph rl_graph_create(RL_Map map, RL_PassableFun passable_f)
+RL_Graph rl_graph_create(const RL_Map *map, RL_PassableFun passable_f)
 {
-    int length = map.width * map.height;
+    int length = map->width * map->height;
     RL_GraphNode *nodes = calloc(sizeof(*nodes), length);
     rl_assert(nodes != NULL);
-    for (int x=0; x<map.width; x++) {
-        for (int y=0; y<map.height; y++) {
-            int idx = x + y*map.width;
+    for (int x=0; x<map->width; x++) {
+        for (int y=0; y<map->height; y++) {
+            int idx = x + y*map->width;
             RL_GraphNode *node = &nodes[idx];
             node->point.x = (double) x;
             node->point.y = (double) y;
@@ -1135,7 +1121,7 @@ RL_Graph rl_graph_create(RL_Map map, RL_PassableFun passable_f)
                 if (!rl_map_in_bounds(map, neighbor_coords[i]))
                     continue;
 
-                int idx = neighbor_coords[i].x + neighbor_coords[i].y*map.width;
+                int idx = neighbor_coords[i].x + neighbor_coords[i].y*map->width;
                 node->neighbors[node->neighbors_length] = &nodes[idx];
                 node->neighbors_length++;
             }
@@ -1145,7 +1131,7 @@ RL_Graph rl_graph_create(RL_Map map, RL_PassableFun passable_f)
     return (RL_Graph) { length, nodes };
 }
 
-RL_Graph rl_dijkstra_create(RL_Map map,
+RL_Graph rl_dijkstra_create(const RL_Map *map,
                             RL_Point start,
                             RL_DistanceFun distance_f,
                             RL_PassableFun passable_f)
@@ -1198,10 +1184,12 @@ void rl_dijkstra_score(RL_Graph *graph, RL_Point start, RL_DistanceFun distance_
     rl_heap_destroy(&heap);
 }
 
-void rl_graph_destroy(RL_Graph graph)
+void rl_graph_destroy(RL_Graph *graph)
 {
-    if (graph.nodes) {
-        free(graph.nodes);
+    if (graph) {
+        if (graph->nodes) {
+            free(graph->nodes);
+        }
     }
 }
 #endif

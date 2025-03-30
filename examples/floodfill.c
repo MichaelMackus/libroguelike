@@ -12,7 +12,7 @@ int main()
     rl_rng_seed(time(0));
 
     RL_Map map = rl_map_create(WIDTH, HEIGHT);
-    RL_BSP *bsp = rl_mapgen_bsp(&map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 1 });
+    RL_BSP bsp = rl_mapgen_bsp(&map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 1 });
 
     int x, y;
     RL_Graph floodfill = rl_map_largest_connected_area(&map);
@@ -47,9 +47,9 @@ int main()
         printf("\n");
     }
 
-    rl_map_destroy(map);
-    rl_bsp_destroy(bsp);
-    rl_graph_destroy(floodfill);
+    rl_map_destroy(&map);
+    rl_bsp_destroy(&bsp);
+    rl_graph_destroy(&floodfill);
 
     printf("Done\n");
 
