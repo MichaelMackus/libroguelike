@@ -358,7 +358,7 @@ int rl_map_is_wall(const RL_Map *map, RL_Point point)
     int x = point.x;
     if (!rl_map_in_bounds(map, point))
         return 0;
-    if (!rl_map_is_passable(map, point)) {
+    if (!rl_map_is_passable(map, point) || rl_map_tile_is(map, point, RL_TileDoor)) {
         return rl_map_is_passable(map, (RL_Point){ x, y + 1 }) ||
                rl_map_is_passable(map, (RL_Point){ x, y - 1 }) ||
                rl_map_is_passable(map, (RL_Point){ x + 1, y }) ||
@@ -698,7 +698,7 @@ static void rl_map_bsp_generate_rooms(RL_BSP *node, RL_Map *map, int room_min_wi
     }
 }
 
-static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root);
+static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, int draw_doors);
 RL_BSP rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config)
 {
     rl_assert(map);
@@ -710,15 +710,11 @@ RL_BSP rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config)
     rl_map_bsp_generate_rooms(&root, map, config.room_min_width, config.room_max_width, config.room_min_height, config.room_max_height, config.room_padding);
 
     if (config.draw_corridors) {
-        rl_mapgen_bsp_connect_corridors(map, &root);
+        rl_mapgen_bsp_connect_corridors(map, &root, config.draw_doors);
     }
 
     // if (config.use_secret_passages) {
         // TODO connect secret passages
-    // }
-
-    // if (config.door_tile) {
-        // TODO connect doors
     // }
 
     return root;
@@ -739,7 +735,7 @@ double rl_mapgen_corridor_distance(RL_Point start, RL_Point end)
     return r;
 }
 
-static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root)
+static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, int draw_doors)
 {
     rl_assert(map && root);
     rl_mapgen_current_map = map; // store current map for corridor drawing algorithm (needed by distance_f)
@@ -786,8 +782,13 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root)
         rl_dijkstra_score(&graph, dig_end, rl_mapgen_corridor_distance);
         RL_Path *path = rl_path_create_from_graph(&graph, dig_start);
         while ((path = rl_path_walk(path))) {
-            if (rl_map_tile_is(map, path->point, RL_TileRock))
-                map->tiles[(int)path->point.x + (int)path->point.y * map->width] = RL_TileCorridor;
+            if (rl_map_tile_is(map, path->point, RL_TileRock)) {
+                if (rl_map_is_room_wall(map, path->point) && draw_doors) {
+                    map->tiles[(int)path->point.x + (int)path->point.y * map->width] = RL_TileDoor;
+                } else {
+                    map->tiles[(int)path->point.x + (int)path->point.y * map->width] = RL_TileCorridor;
+                }
+            }
         }
 
         // find start node for next loop iteration

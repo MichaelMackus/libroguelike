@@ -31,7 +31,7 @@ int main(int argc, char **argv)
                     else if (wall & RL_WallToSouth || wall & RL_WallToNorth)
                         printf("|");
                     else if (wall)
-                        printf("+");
+                        printf("0");
                     else
                         printf(" ");
                     break;
