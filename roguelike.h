@@ -725,11 +725,11 @@ double rl_mapgen_corridor_distance(RL_Point start, RL_Point end)
 {
     double r = rl_distance_manhattan(start, end); // TODO figure out diagonals
 
-    if (rl_map_is_room_wall(rl_mapgen_current_map, end)) {
-        return r + 9; // heavily discourage carving into room walls
+    if (rl_map_tile_is(rl_mapgen_current_map, end, RL_TileDoor)) {
+        return r; // doors are passable but count as "walls" - encourage passing through them
     }
     if (rl_map_is_wall(rl_mapgen_current_map, end)) {
-        return r + 0.5; // slightly discourage double wide corridors
+        return r + 9; // discourage double wide corridors & double carving into walls
     }
 
     return r;
