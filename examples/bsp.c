@@ -7,9 +7,14 @@
 #define WIDTH 80
 #define HEIGHT 25
 
-int main()
+int main(int argc, char **argv)
 {
-    rl_rng_seed(time(0));
+    unsigned long seed = time(0);
+    if (argc > 1) {
+        seed = atol(argv[1]);
+    }
+    printf("Seed: %ld\n", seed);
+    rl_rng_seed(seed);
     RL_Map map = rl_map_create(WIDTH, HEIGHT);
     RL_BSP bsp = rl_mapgen_bsp(&map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 0 });
 
