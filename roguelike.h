@@ -775,7 +775,7 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, int draw_
         RL_Point dig_start, dig_end;
         for (int x = node->x; x < node->width + node->x; ++x) {
             for (int y = node->y; y < node->height + node->y; ++y) {
-                if (rl_map_is_passable(map, RL_XY(x, y))) {
+                if (rl_map_tile_is(map, RL_XY(x, y), RL_TileRoom)) {
                     dig_start = RL_XY(x, y);
                 }
             }
@@ -783,7 +783,7 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, int draw_
         rl_assert(rl_map_is_passable(map, dig_start));
         for (int x = sibling->x; x < sibling->width + sibling->x; ++x) {
             for (int y = sibling->y; y < sibling->height + sibling->y; ++y) {
-                if (rl_map_is_passable(map, RL_XY(x, y))) {
+                if (rl_map_tile_is(map, RL_XY(x, y), RL_TileRoom)) {
                     dig_end = RL_XY(x, y);
                 }
             }
