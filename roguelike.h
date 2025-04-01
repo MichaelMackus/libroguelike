@@ -222,8 +222,12 @@ double rl_distance_chebyshev(RL_Point node, RL_Point end);
 // Custom heuristic function for pathfinding - calculates distance between map nodes
 typedef double (*RL_DistanceFun)(RL_Point from, RL_Point to);
 
-// Custom passable function for pathfinding
+// Custom passable function for pathfinding. Return 0 to prevent neighbor from being included in graph.
 typedef int (*RL_PassableFun)(const RL_Map *map, RL_Point point);
+
+// Custom score function for pathfinding - most users won't need this, but it gives flexibility in weighting the
+// Dijkstra graph. Note that Dijkstra expects you to add the current node's score to the newly calculated score.
+typedef double (*RL_ScoreFun)(RL_GraphNode *current, RL_GraphNode *neighbor, void *context);
 
 // Find a path between start and end via Dijkstra algorithm. Make sure to call rl_path_destroy when done with path.
 // Pass NULL to distance_f to use rough approximation for euclidian.
@@ -240,29 +244,33 @@ RL_Path *rl_path_walk(RL_Path *path);
 // Destroy & clean up all nodes from path onward.
 void rl_path_destroy(RL_Path *path);
 
-// Dijkstra pathfinding algorithm. Pass NULL to distance_f to use rough approximation for euclidian. Make sure to
-// destroy it with rl_graph_destroy. Pass NULL to passable_f to pass through impassable tiles, otherwise pass
-// rl_map_is_passable for the default.
+// Dijkstra pathfinding algorithm. Pass NULL to distance_f to use rough approximation for euclidian.  Pass NULL to
+// passable_f to pass through impassable tiles, otherwise pass rl_map_is_passable for the default.
 //
 // You can use Dijkstra maps for pathfinding, simple AI, and much more. For example, by setting the player point to
 // "start" then you can pick the highest scored tile in the map and set that as the new "start" point. As with all
-// Dijkstra maps, you just walk the map by picking the highest scored neighbor. This is a simplistic AI resembling a
+// Dijkstra maps, you just walk the map by picking the lowest scored neighbor. This is a simplistic AI resembling a
 // wounded NPC fleeing from the player.
+//
+// Make sure to destroy the resulting RL_Graph with rl_graph_destroy.
 RL_Graph rl_dijkstra_create(const RL_Map *map,
                             RL_Point start,
                             RL_DistanceFun distance_f,
                             RL_PassableFun passable_f);
 
 // Dijkstra pathfinding algorithm. Uses RL_Graph so that your code doesn't need to rely on RL_Map. Each node's
-// distance should equal DBL_MAX if it is impassable.
-//
-// Make sure to destroy the resulting path map with rl_graph_destroy.
+// distance should equal DBL_MAX in the resulting graph if it is impassable.
 void rl_dijkstra_score(RL_Graph *graph, RL_Point start, RL_DistanceFun distance_f);
+
+// Dijkstra pathfinding algorithm for advanced use cases such as weighting certain tiles higher than others. Uses
+// RL_Graph so that your code doesn't need to rely on RL_Map. Each node's distance should equal DBL_MAX in the resulting
+// graph if it is impassable. Most users should just use rl_dijkstra_score - only use this if you have a specific need.
+void rl_dijkstra_score_ex(RL_Graph *graph, RL_Point start, RL_ScoreFun score_f, void *score_context);
 
 // Create an unscored graph based on the 2d map. Make sure to call rl_graph_destroy when finished.
 RL_Graph rl_graph_create(const RL_Map *map, RL_PassableFun passable_f, int allow_diagonal_neighbors);
 
-// Free path map memory.
+// Free graph memory.
 void rl_graph_destroy(RL_Graph *graph);
 
 /**
@@ -720,15 +728,18 @@ RL_BSP rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config)
     return root;
 }
 
-static const RL_Map *rl_mapgen_current_map; // current map as corridors are being carved
-double rl_mapgen_corridor_distance(RL_Point start, RL_Point end)
+// custom Dijkstra scorer function to prevent carving double wide doors when carving corridors
+static inline double rl_mapgen_corridor_scorer(RL_GraphNode *current, RL_GraphNode *neighbor, void *context)
 {
-    double r = rl_distance_manhattan(start, end); // TODO figure out diagonals
+    RL_Map *map = context;
+    RL_Point start = current->point;
+    RL_Point end = neighbor->point;
+    double r = current->score + rl_distance_manhattan(start, end);
 
-    if (rl_map_tile_is(rl_mapgen_current_map, end, RL_TileDoor)) {
+    if (rl_map_tile_is(map, end, RL_TileDoor)) {
         return r; // doors are passable but count as "walls" - encourage passing through them
     }
-    if (rl_map_is_wall(rl_mapgen_current_map, end)) {
+    if (rl_map_is_wall(map, end)) {
         return r + 9; // discourage double wide corridors & double carving into walls
     }
 
@@ -738,7 +749,6 @@ double rl_mapgen_corridor_distance(RL_Point start, RL_Point end)
 static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, int draw_doors)
 {
     rl_assert(map && root);
-    rl_mapgen_current_map = map; // store current map for corridor drawing algorithm (needed by distance_f)
 
     // find deepest left-most node
     RL_BSP *leftmost_node = root;
@@ -747,11 +757,14 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, int draw_
     }
     RL_BSP *node = leftmost_node;
     RL_Graph graph = rl_graph_create(map, NULL, 0);
-    while (node->parent) {
+    while (node) {
         RL_BSP *sibling = rl_bsp_next_node(node);
 
         if (sibling == NULL) {
-            // if we're at the last node in this depth, connect parents
+            if (node->parent) {
+                rl_assert(node->parent->right == node);
+            }
+            // find leftmost node at higher depth
             node = leftmost_node->parent;
             leftmost_node = node;
             continue;
@@ -779,8 +792,9 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, int draw_
         rl_assert(!(dig_start.x == dig_end.x && dig_start.y == dig_end.y));
 
         // carve out corridors
-        rl_dijkstra_score(&graph, dig_end, rl_mapgen_corridor_distance);
+        rl_dijkstra_score_ex(&graph, dig_end, rl_mapgen_corridor_scorer, map);
         RL_Path *path = rl_path_create_from_graph(&graph, dig_start);
+        rl_assert(path);
         while ((path = rl_path_walk(path))) {
             if (rl_map_tile_is(map, path->point, RL_TileRock)) {
                 if (rl_map_is_room_wall(map, path->point) && draw_doors) {
@@ -944,9 +958,6 @@ void *rl_heap_pop(RL_Heap *h)
     return r;
 }
 
-#define RL_NODE_STATE_VISITED    1
-#define RL_NODE_STATE_PROCESSING 1 << 1
-
 // simplified distance for side by side nodes
 static double rl_distance_simple(RL_Point node, RL_Point end)
 {
@@ -1108,16 +1119,29 @@ RL_Graph rl_dijkstra_create(const RL_Map *map,
     return graph;
 }
 
+// default scorer function for Dijkstra - this simply accepts a RL_DistanceFun as context and adds the current nodes
+// score to the result of the distance function
+double rl_dijkstra_default_score_f(RL_GraphNode *current, RL_GraphNode *neighbor, void *context)
+{
+    struct { RL_DistanceFun fun; } *distance_f = context;
+
+    return current->score + distance_f->fun(current->point, neighbor->point);
+}
+
 void rl_dijkstra_score(RL_Graph *graph, RL_Point start, RL_DistanceFun distance_f)
 {
+    struct { RL_DistanceFun fun; } scorer_context;
+    scorer_context.fun = distance_f ? distance_f : rl_distance_simple; // default to rl_distance_simple
+    rl_dijkstra_score_ex(graph, start, rl_dijkstra_default_score_f, &scorer_context);
+}
+
+void rl_dijkstra_score_ex(RL_Graph *graph, RL_Point start, RL_ScoreFun score_f, void *score_context)
+{
     rl_assert(graph);
+    rl_assert(score_f);
 
     RL_GraphNode *current;
     RL_Heap heap = rl_heap_create(graph->length, &rl_scored_graph_heap_comparison);
-
-    if (distance_f == NULL) {
-        distance_f = rl_distance_simple;
-    }
 
     // reset scores of dijkstra map, setting the start point to 0
     for (size_t i=0; i < graph->length; i++) {
@@ -1135,7 +1159,7 @@ void rl_dijkstra_score(RL_Graph *graph, RL_Point start, RL_DistanceFun distance_
     while (current) {
         for (size_t i=0; i<current->neighbors_length; i++) {
             RL_GraphNode *neighbor = current->neighbors[i];
-            double distance = current->score + distance_f(current->point, neighbor->point);
+            double distance = score_f(current, neighbor, score_context);
             if (distance < neighbor->score) {
                 if (neighbor->score == DBL_MAX) {
                     rl_heap_insert(&heap, neighbor);
