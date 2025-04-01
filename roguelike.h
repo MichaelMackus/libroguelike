@@ -2,6 +2,7 @@
 #define RL_ROGUELIKE_H
 
 #include <stdlib.h>
+#include <stdbool.h>
 
 /**
  * MIT License
@@ -38,11 +39,18 @@ typedef enum {
     RL_TileDoor,
 } RL_Tile;
 
+typedef enum {
+    RL_TileCannotSee = 0,
+    RL_TileVisible,
+    RL_TileSeen,
+} RL_TileVisibility;
+
 // Generic dungeon map structure, supporting hex & square 2d maps
 typedef struct RL_Map {
     int width;
     int height;
     RL_Tile *tiles; // 2d array of Width*Height for 2d square map - by default 0 is the impassable/rock tile
+    RL_TileVisibility *visibility; // 2d array of Width*Height for checking tile visibility - must call rl_fov first to update visibility
 } RL_Map;
 
 typedef struct RL_Point {
@@ -147,11 +155,20 @@ int rl_map_tile_is(const RL_Map *map, RL_Point point, RL_Tile tile);
 // tile to the south, west, and east would have a bitmask of 0b1011.
 int rl_map_wall(const RL_Map *map, RL_Point point);
 
+// Is the wall a corner?
+int rl_map_is_corner_wall(const RL_Map *map, RL_Point point);
+
 // Is this a wall that is touching a room tile?
 int rl_map_is_room_wall(const RL_Map *map, RL_Point point);
 
 // A wall that is touching a room tile (e.g. to display it lit).
 int rl_map_room_wall(const RL_Map *map, RL_Point point);
+
+// Checks if a point is visible within FOV. Make sure to call rl_map_fov_calculate first.
+int rl_map_is_visible(const RL_Map *map, RL_Point point);
+
+// Checks if a point has been seen within FOV. Make sure to call rl_map_fov_calculate first.
+int rl_map_is_seen(const RL_Map *map, RL_Point point);
 
 // Returns a the largest connected area (of passable tiles) on the map.
 RL_Graph rl_map_largest_connected_area(const RL_Map *map);
@@ -214,12 +231,12 @@ RL_BSP *rl_bsp_next_node(RL_BSP *node);
  * Pathfinding
  */
 
-// Useful heuristic functions for pathfinding.
+// Useful distance functions for pathfinding.
 double rl_distance_manhattan(RL_Point node, RL_Point end);
 double rl_distance_euclidian(RL_Point node, RL_Point end);
 double rl_distance_chebyshev(RL_Point node, RL_Point end);
 
-// Custom heuristic function for pathfinding - calculates distance between map nodes
+// Custom distance function for pathfinding - calculates distance between map nodes
 typedef double (*RL_DistanceFun)(RL_Point from, RL_Point to);
 
 // Custom passable function for pathfinding. Return 0 to prevent neighbor from being included in graph.
@@ -274,6 +291,16 @@ RL_Graph rl_graph_create(const RL_Map *map, RL_PassableFun passable_f, int allow
 void rl_graph_destroy(RL_Graph *graph);
 
 /**
+ * FOV
+ */
+
+// Calculate FOV using simple shadowcasting algorithm. Set symmetric to 1 if you want the algorithm to be symmetrical
+// Set symmetric to 1 if you want the algorithm to be symmetrical.
+//
+// Note that this sets previously visible tiles to RL_TileSeen.
+void rl_map_fov_calculate(RL_Map *map, RL_Point start, int fov_radius, int symmetric, RL_DistanceFun distance_f);
+
+/**
  * Random number generation
  */
 
@@ -315,15 +342,23 @@ RL_Map rl_map_create(int width, int height)
     RL_Map map = { 0 };
     rl_assert(width > 0 && height > 0);
     rl_map_init(&map, width, height);
+    rl_assert(map.tiles);
+    rl_assert(map.visibility);
 
     return map;
 }
 
 void rl_map_destroy(RL_Map *map)
 {
-    if (map && map->tiles) {
-        free(map->tiles);
-        map->tiles = NULL;
+    if (map) {
+        if (map->tiles) {
+            free(map->tiles);
+            map->tiles = NULL;
+        }
+        if (map->visibility) {
+            free(map->visibility);
+            map->visibility = NULL;
+        }
     }
 }
 
@@ -334,6 +369,9 @@ void rl_map_init(RL_Map *map, int width, int height)
     map->height = height;
     if (map && map->tiles == NULL) {
         map->tiles = calloc(map->width * map->height, sizeof(*map->tiles));
+    }
+    if (map && map->visibility == NULL) {
+        map->visibility = calloc(map->width * map->height, sizeof(*map->tiles));
     }
 }
 
@@ -395,6 +433,16 @@ int rl_map_wall(const RL_Map *map, RL_Point point)
     if (rl_map_is_wall(map, RL_XY(point.x,     point.y + 1)))
         mask |= RL_WallToSouth;
     return mask ? mask : RL_WallOther;
+}
+
+int rl_map_is_corner_wall(const RL_Map *map, RL_Point point)
+{
+    int wall = rl_map_wall(map, point);
+    if (!wall) return 0;
+    return (wall & RL_WallToWest && wall & RL_WallToNorth) ||
+           (wall & RL_WallToWest && wall & RL_WallToSouth) ||
+           (wall & RL_WallToEast && wall & RL_WallToNorth) ||
+           (wall & RL_WallToEast && wall & RL_WallToSouth);
 }
 
 int rl_map_tile_is(const RL_Map *map, RL_Point point, RL_Tile tile)
@@ -817,6 +865,22 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, int draw_
     rl_graph_destroy(&graph);
 }
 
+int rl_map_is_visible(const RL_Map *map, RL_Point point)
+{
+    if (!rl_map_in_bounds(map, point)) {
+        return 0;
+    }
+    return map->visibility[(int)point.x + (int)point.y*map->width] == RL_TileVisible;
+}
+
+int rl_map_is_seen(const RL_Map *map, RL_Point point)
+{
+    if (!rl_map_in_bounds(map, point)) {
+        return 0;
+    }
+    return map->visibility[(int)point.x + (int)point.y*map->width] == RL_TileSeen;
+}
+
 RL_Graph rl_map_largest_connected_area(const RL_Map *map)
 {
     int *visited = calloc(sizeof(*visited), map->width * map->height);
@@ -851,16 +915,6 @@ RL_Graph rl_map_largest_connected_area(const RL_Map *map)
 }
 
 // TODO method to connect corridors "randomly" (e.g. to make the map more circular)
-
-double manhattan_distance(RL_Point node, RL_Point end)
-{
-    return fabs(node.x - end.x) + fabs(node.y - end.y);
-}
-
-double euclidian_distance(RL_Point node, RL_Point end)
-{
-    return sqrt(pow(node.x - end.x, 2) + pow(node.y - end.y, 2));
-}
 
 /**
  * Heap functions for pathfinding
@@ -1182,6 +1236,93 @@ void rl_graph_destroy(RL_Graph *graph)
         }
     }
 }
-#endif
 
+typedef struct {
+    int Y;
+    int X;
+} RL_Slope;
+
+// adapted from: https://www.adammil.net/blog/v125_Roguelike_Vision_Algorithms.html#shadowcode (public domain)
+// also see: https://www.roguebasin.com/index.php/FOV_using_recursive_shadowcasting
+void rl_map_fov_calculate_recursive(RL_Map *map, RL_Point origin, int fov_radius, int symmetric, RL_DistanceFun distance_f, int octant, int x, RL_Slope top, RL_Slope bottom)
+{
+    for(; (unsigned int)x <= (unsigned int)fov_radius; x++)
+    {
+        // compute the Y coordinates where the top vector leaves the column (on the right) and where the bottom vector
+        // enters the column (on the left). this equals (x+0.5)*top+0.5 and (x-0.5)*bottom+0.5 respectively, which can
+        // be computed like (x+0.5)*top+0.5 = (2(x+0.5)*top+1)/2 = ((2x+1)*top+1)/2 to avoid floating point math
+        // the rounding is a bit tricky, though
+        int topY = top.X == 1 ? x : ((x*2+1) * top.Y + top.X - 1) / (top.X*2); // the rounding is a bit tricky, though
+        int bottomY = bottom.Y == 0 ? 0 : ((x*2-1) * bottom.Y + bottom.X) / (bottom.X*2);
+        int wasOpaque = -1; // 0:false, 1:true, -1:not applicable
+        for(int y=topY; y >= bottomY; y--)
+        {
+            int tx = origin.x, ty = origin.y;
+            switch(octant) // translate local coordinates to map coordinates
+            {
+                case 0: tx += x; ty -= y; break;
+                case 1: tx += y; ty -= x; break;
+                case 2: tx -= y; ty -= x; break;
+                case 3: tx -= x; ty -= y; break;
+                case 4: tx -= x; ty += y; break;
+                case 5: tx -= y; ty += x; break;
+                case 6: tx += y; ty += x; break;
+                case 7: tx += x; ty += y; break;
+            }
+
+            bool inRange = fov_radius < 0 || distance_f(origin, RL_XY(tx, ty)) <= (double)fov_radius;
+            if(inRange) {
+                if (symmetric && (y != topY || top.Y*x >= top.X*y) && (y != bottomY || bottom.Y*x <= bottom.X*y)) {
+                    map->visibility[tx + ty*map->width] = RL_TileVisible;
+                } else {
+                    map->visibility[tx + ty*map->width] = RL_TileVisible;
+                }
+            }
+
+            bool isOpaque = !inRange || !rl_map_is_passable(map, RL_XY(tx, ty));
+            if((int)x != fov_radius)
+            {
+                if(isOpaque)
+                {
+                    if(wasOpaque == 0) // if we found a transition from clear to opaque, this sector is done in this column, so
+                    {                  // adjust the bottom vector upwards and continue processing it in the next column.
+                        RL_Slope newBottom = { (y*2+1), (x*2-1) }; // (x*2-1, y*2+1) is a vector to the top-left of the opaque tile
+                        if(!inRange || y == bottomY) { bottom = newBottom; break; } // don't recurse unless we have to
+                        else rl_map_fov_calculate_recursive(map, origin, fov_radius, symmetric, distance_f, octant, x+1, top, newBottom);
+                    }
+                    wasOpaque = 1;
+                }
+                else // adjust top vector downwards and continue if we found a transition from opaque to clear
+                {    // (x*2+1, y*2+1) is the top-right corner of the clear tile (i.e. the bottom-right of the opaque tile)
+                    if(wasOpaque > 0) top = (RL_Slope) { (y*2+1), (x*2+1) };
+                    wasOpaque = 0;
+                }
+            }
+        }
+
+        if(wasOpaque != 0) break; // if the column ended in a clear tile, continue processing the current sector
+    }
+}
+
+// TODO need passable_f
+void rl_map_fov_calculate(RL_Map *map, RL_Point origin, int fov_radius, int symmetric, RL_DistanceFun distance_f)
+{
+    if (!rl_map_in_bounds(map, origin)) {
+        return;
+    }
+    // set previously visible tiles to seen
+    for (int x=0; x<map->width; ++x) {
+        for (int y=0; y<map->height; ++y) {
+            if (map->visibility[x + y*map->width] == RL_TileVisible) {
+                map->visibility[x + y*map->width] = RL_TileSeen;
+            }
+        }
+    }
+    map->visibility[(int)origin.x + (int)origin.y*map->width] = RL_TileVisible;
+    for (int octant=0; octant<8; ++octant) {
+        rl_map_fov_calculate_recursive(map, origin, fov_radius, symmetric, distance_f, octant, 1, (RL_Slope) { 1, 1 }, (RL_Slope) { 0, 1 });
+    }
+}
+
+#endif
 #endif
