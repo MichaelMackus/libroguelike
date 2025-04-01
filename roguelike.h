@@ -371,7 +371,7 @@ void rl_map_init(RL_Map *map, int width, int height)
         map->tiles = calloc(map->width * map->height, sizeof(*map->tiles));
     }
     if (map && map->visibility == NULL) {
-        map->visibility = calloc(map->width * map->height, sizeof(*map->tiles));
+        map->visibility = calloc(map->width * map->height, sizeof(*map->visibility));
     }
 }
 
