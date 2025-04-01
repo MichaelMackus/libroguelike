@@ -787,6 +787,9 @@ static inline double rl_mapgen_corridor_scorer(RL_GraphNode *current, RL_GraphNo
     if (rl_map_tile_is(map, end, RL_TileDoor)) {
         return r; // doors are passable but count as "walls" - encourage passing through them
     }
+    if (rl_map_is_corner_wall(map, end)) {
+        return r + 99; // discourage double wide corridors & double carving into walls
+    }
     if (rl_map_is_wall(map, end)) {
         return r + 9; // discourage double wide corridors & double carving into walls
     }
