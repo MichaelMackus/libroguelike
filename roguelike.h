@@ -298,7 +298,7 @@ void rl_graph_destroy(RL_Graph *graph);
 // Set symmetric to 1 if you want the algorithm to be symmetrical.
 //
 // Note that this sets previously visible tiles to RL_TileSeen.
-void rl_map_fov_calculate(RL_Map *map, RL_Point start, int fov_radius, int symmetric, RL_DistanceFun distance_f);
+void rl_map_fov_calculate(RL_Map *map, RL_Point start, int fov_radius, int symmetric, RL_DistanceFun distance_f, RL_PassableFun passable_f);
 
 /**
  * Random number generation
@@ -1247,8 +1247,10 @@ typedef struct {
 
 // adapted from: https://www.adammil.net/blog/v125_Roguelike_Vision_Algorithms.html#shadowcode (public domain)
 // also see: https://www.roguebasin.com/index.php/FOV_using_recursive_shadowcasting
-void rl_map_fov_calculate_recursive(RL_Map *map, RL_Point origin, int fov_radius, int symmetric, RL_DistanceFun distance_f, int octant, int x, RL_Slope top, RL_Slope bottom)
+void rl_map_fov_calculate_recursive(RL_Map *map, RL_Point origin, int fov_radius, int symmetric, RL_DistanceFun distance_f, RL_PassableFun passable_f, int octant, int x, RL_Slope top, RL_Slope bottom)
 {
+    rl_assert(distance_f);
+    rl_assert(passable_f);
     for(; (unsigned int)x <= (unsigned int)fov_radius; x++)
     {
         // compute the Y coordinates where the top vector leaves the column (on the right) and where the bottom vector
@@ -1282,7 +1284,7 @@ void rl_map_fov_calculate_recursive(RL_Map *map, RL_Point origin, int fov_radius
                 }
             }
 
-            bool isOpaque = !inRange || !rl_map_is_passable(map, RL_XY(tx, ty));
+            bool isOpaque = !inRange || !passable_f(map, RL_XY(tx, ty));
             if((int)x != fov_radius)
             {
                 if(isOpaque)
@@ -1291,7 +1293,7 @@ void rl_map_fov_calculate_recursive(RL_Map *map, RL_Point origin, int fov_radius
                     {                  // adjust the bottom vector upwards and continue processing it in the next column.
                         RL_Slope newBottom = { (y*2+1), (x*2-1) }; // (x*2-1, y*2+1) is a vector to the top-left of the opaque tile
                         if(!inRange || y == bottomY) { bottom = newBottom; break; } // don't recurse unless we have to
-                        else rl_map_fov_calculate_recursive(map, origin, fov_radius, symmetric, distance_f, octant, x+1, top, newBottom);
+                        else rl_map_fov_calculate_recursive(map, origin, fov_radius, symmetric, distance_f, passable_f, octant, x+1, top, newBottom);
                     }
                     wasOpaque = 1;
                 }
@@ -1307,8 +1309,7 @@ void rl_map_fov_calculate_recursive(RL_Map *map, RL_Point origin, int fov_radius
     }
 }
 
-// TODO need passable_f
-void rl_map_fov_calculate(RL_Map *map, RL_Point origin, int fov_radius, int symmetric, RL_DistanceFun distance_f)
+void rl_map_fov_calculate(RL_Map *map, RL_Point origin, int fov_radius, int symmetric, RL_DistanceFun distance_f, RL_PassableFun passable_f)
 {
     if (!rl_map_in_bounds(map, origin)) {
         return;
@@ -1323,7 +1324,7 @@ void rl_map_fov_calculate(RL_Map *map, RL_Point origin, int fov_radius, int symm
     }
     map->visibility[(int)origin.x + (int)origin.y*map->width] = RL_TileVisible;
     for (int octant=0; octant<8; ++octant) {
-        rl_map_fov_calculate_recursive(map, origin, fov_radius, symmetric, distance_f, octant, 1, (RL_Slope) { 1, 1 }, (RL_Slope) { 0, 1 });
+        rl_map_fov_calculate_recursive(map, origin, fov_radius, symmetric, distance_f, passable_f, octant, 1, (RL_Slope) { 1, 1 }, (RL_Slope) { 0, 1 });
     }
 }
 
