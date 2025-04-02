@@ -5,7 +5,7 @@ BINS=$(SRCS:%.c=%)
 
 all: $(BINS)
 
-fov: fov.c ../roguelike.h
+player_movement: player_movement.c ../roguelike.h
 	$(CC) $(CFLAGS) -lcurses -o $@ $<
 %: %.c ../roguelike.h
 	$(CC) $(CFLAGS) -o $@ $<
