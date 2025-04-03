@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-lm -Wall -Wextra -pedantic -Werror -std=c99
+CFLAGS=-lm -Wall -Wextra -pedantic -Werror -ggdb -std=c99
 SRCS=$(wildcard *.c)
 BINS=$(SRCS:%.c=%)
 

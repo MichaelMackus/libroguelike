@@ -59,10 +59,10 @@ int main(int argc, char **argv)
     int quit = 0;
     while (!quit) {
         // regenerate FOV
-        rl_map_fov_calculate(&map, player, 8, 1, rl_distance_euclidian, rl_map_is_passable);
+        rl_fov_calculate_for_map(&map, player, 8, 1, rl_distance_euclidian); // TODO something in here is overwriting tiles!
         // draw the map, only drawing previously seen tiles or tiles within the FOV
-        for (y = 0; y < HEIGHT; ++y) {
-            for (x = 0; x < WIDTH; ++x) {
+        for (y = 0; y < map.height; ++y) {
+            for (x = 0; x < map.width; ++x) {
                 if (y == player.y && x == player.x) {
                     mvaddch(y, x, '@');
                 } else if (rl_map_is_visible(&map, RL_XY(x, y)) || rl_map_is_seen(&map, RL_XY(x, y))) {
