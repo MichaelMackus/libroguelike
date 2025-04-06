@@ -248,6 +248,9 @@ typedef bool (*RL_PassableFun)(const RL_Map *map, RL_Point point);
 // Dijkstra graph. Note that Dijkstra expects you to add the current node's score to the newly calculated score.
 typedef double (*RL_ScoreFun)(RL_GraphNode *current, RL_GraphNode *neighbor, void *context);
 
+// Generates a line starting at from ending at to. Each path in the line will be incremented by step.
+RL_Path *rl_line_create(RL_Point from, RL_Point to, double step);
+
 // Find a path between start and end via Dijkstra algorithm. Make sure to call rl_path_destroy when done with path.
 // Pass NULL to distance_f to use rough approximation for euclidian.
 RL_Path *rl_path_create(const RL_Map *map, RL_Point start, RL_Point end, RL_DistanceFun distance_f, RL_PassableFun passable_f);
@@ -1161,6 +1164,46 @@ double rl_distance_chebyshev(RL_Point node, RL_Point end)
     double distance_y = fabs(node.y - end.y);
 
     return distance_x > distance_y ? distance_x : distance_y;
+}
+
+RL_Path *rl_line_create(RL_Point a, RL_Point b, double step)
+{
+    double delta_x = fabs(a.x - b.x);
+    double x_increment = b.x > a.x ? step : -step;
+    double delta_y = fabs(a.y - b.y);
+    double y_increment = b.y > a.y ? step : -step;
+    double error = 0.0;
+    double slope = delta_x ? delta_y / delta_x : 0.0;
+
+    RL_Path *head = rl_path(a);
+    RL_Path *path = head;
+    while (path->point.x != b.x || path->point.y != b.y) {
+        RL_Point point = path->point;
+
+        if (delta_x > delta_y) {
+            error += slope;
+            if (error > 0.5 && point.y != b.y) {
+                error -= 1.0;
+                point.y += y_increment;
+            }
+
+            point.x += x_increment;
+        } else {
+            error += 1/slope;
+            if (error > 0.5 && point.x != b.x) {
+                error -= 1.0;
+                point.x += x_increment;
+            }
+
+            point.y += y_increment;
+        }
+
+        // add new member to linked list & advance
+        path->next = rl_path(point);
+        path = path->next;
+    }
+
+    return head;
 }
 
 RL_Path *rl_path_create(const RL_Map *map, RL_Point start, RL_Point end, RL_DistanceFun distance_f, RL_PassableFun passable_f)
