@@ -25,7 +25,7 @@
  */
 int main(int argc, char **argv)
 {
-    int x, y;
+    unsigned int x, y;
     unsigned long seed = time(0);
     if (argc > 1) {
         seed = atol(argv[1]); // parse seed from CLI arg
@@ -33,8 +33,8 @@ int main(int argc, char **argv)
     rl_rng_seed(seed);
 
     // generate a random map with recursive BSP generation
-    RL_Map map = rl_map_create(WIDTH, HEIGHT);
-    RL_BSP bsp = rl_mapgen_bsp(&map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 1 });
+    RL_Map *map = rl_map_create(WIDTH, HEIGHT);
+    RL_BSP *bsp = rl_mapgen_bsp(map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 1 });
 
     // initialize curses (for player movement)
     initscr();
@@ -52,26 +52,26 @@ int main(int argc, char **argv)
     RL_Point player = { 0 }; // point the player is at
     RL_Path *player_path = NULL; // path for mouse movement
     // generate a random starting tile for player
-    while (!rl_map_tile_is(&map, player, RL_TileRoom)) {
+    while (!rl_map_tile_is(map, player, RL_TileRoom)) {
         player.x = rl_rng_generate(0, WIDTH - 1);
         player.y = rl_rng_generate(0, HEIGHT - 1);
     }
     int quit = 0;
     while (!quit) {
         // regenerate FOV
-        rl_fov_calculate_for_map(&map, player, 8, 1, rl_distance_euclidian); // TODO something in here is overwriting tiles!
+        rl_fov_calculate_for_map(map, player, -1, true, rl_distance_euclidian);
         // draw the map, only drawing previously seen tiles or tiles within the FOV
-        for (y = 0; y < map.height; ++y) {
-            for (x = 0; x < map.width; ++x) {
+        for (y = 0; y < map->height; ++y) {
+            for (x = 0; x < map->width; ++x) {
                 if (y == player.y && x == player.x) {
                     mvaddch(y, x, '@');
-                } else if (rl_map_is_visible(&map, RL_XY(x, y)) || rl_map_is_seen(&map, RL_XY(x, y))) {
-                    RL_Tile t = map.tiles[map.width*y + x];
+                } else if (rl_map_is_visible(map, RL_XY(x, y)) || rl_map_is_seen(map, RL_XY(x, y))) {
+                    RL_Tile t = map->tiles[map->width*y + x];
                     char ch = ' ';
                     switch (t) {
                         case RL_TileRock:
                             ;
-                            int wall = rl_map_room_wall(&map, RL_XY(x, y));
+                            int wall = rl_map_room_wall(map, RL_XY(x, y));
                             if (wall & RL_WallToEast || wall & RL_WallToWest)
                                 ch = '-';
                             else if (wall & RL_WallToSouth || wall & RL_WallToNorth)
@@ -91,7 +91,7 @@ int main(int argc, char **argv)
                             ch = '+';
                             break;
                     }
-                    if (!rl_map_is_visible(&map, RL_XY(x, y))) {
+                    if (!rl_map_is_visible(map, RL_XY(x, y))) {
                         // if not visible but previously seen, we draw in a muted grey
                         attroff(COLOR_PAIR(1));
                         attron(COLOR_PAIR(2));
@@ -138,8 +138,8 @@ int main(int argc, char **argv)
                         {
                             // if we have a mouse event & the destination is seen & passable, create a path to the destination
                             RL_Point dest = RL_XY(ev.x, ev.y);
-                            if ((rl_map_is_seen(&map, dest) || rl_map_is_visible(&map, dest)) && rl_map_is_passable(&map, dest)) {
-                                player_path = rl_path_create(&map, player, dest, rl_distance_chebyshev, rl_map_is_passable);
+                            if ((rl_map_is_seen(map, dest) || rl_map_is_visible(map, dest)) && rl_map_is_passable(map, dest)) {
+                                player_path = rl_path_create(map, player, dest, rl_distance_chebyshev, rl_map_is_passable);
                                 player_path = rl_path_walk(player_path); // skip first point
                             }
                         }
@@ -153,7 +153,7 @@ int main(int argc, char **argv)
             Sleep(50); // so we can see the movement
         }
         // update the player position if the target is passable
-        if (rl_map_is_passable(&map, new_player)) {
+        if (rl_map_is_passable(map, new_player)) {
             player = new_player;
         }
     }
@@ -161,8 +161,8 @@ int main(int argc, char **argv)
     // cleanup
     endwin();
     printf("Seed: %ld\n", seed); // pass seed as first argument to re-use RNG
-    rl_map_destroy(&map);
-    rl_bsp_destroy(&bsp);
+    rl_map_destroy(map);
+    rl_bsp_destroy(bsp);
 
     return 0;
 }

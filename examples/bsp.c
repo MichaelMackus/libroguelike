@@ -8,7 +8,6 @@
 #define HEIGHT 30
 
 char bsp_map[WIDTH * HEIGHT];
-int leaf_count;
 void render_bsp(RL_BSP *node)
 {
     if (node == NULL) {
@@ -17,8 +16,8 @@ void render_bsp(RL_BSP *node)
     // draw
     render_bsp(node->left);
     render_bsp(node->right);
-    for (int y=node->y; y<node->height + node->y; ++y) {
-        for (int x=node->x; x<node->width + node->x; ++x) {
+    for (unsigned int y=node->y; y<node->height + node->y; ++y) {
+        for (unsigned int x=node->x; x<node->width + node->x; ++x) {
             if (node->left && node->left->left && !node->left->left->left) {
                 rl_assert(node->parent);
                 if (x == node->x || y == node->y || x == node->x + node->width - 1 || y == node->y + node->height - 1) {
@@ -38,17 +37,17 @@ void render_bsp(RL_BSP *node)
 
 int main(int argc, char **argv)
 {
-    int x, y;
+    unsigned int x, y;
     unsigned long seed = time(0);
     if (argc > 1) {
         seed = atol(argv[1]);
     }
     printf("Seed: %ld\n", seed);
     rl_rng_seed(seed);
-    RL_Map map = rl_map_create(WIDTH, HEIGHT);
-    RL_BSP bsp = rl_mapgen_bsp(&map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 1 });
+    RL_Map *map = rl_map_create(WIDTH, HEIGHT);
+    RL_BSP *bsp = rl_mapgen_bsp(map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 1 });
 
-    render_bsp(&bsp);
+    render_bsp(bsp);
     for (y = 0; y < HEIGHT; ++y) {
         for (x = 0; x < WIDTH; ++x) {
             if (bsp_map[x + y*WIDTH])
@@ -61,11 +60,11 @@ int main(int argc, char **argv)
 
     for (y = 0; y < HEIGHT; ++y) {
         for (x = 0; x < WIDTH; ++x) {
-            RL_Tile t = map.tiles[map.width*y + x];
+            RL_Tile t = map->tiles[map->width*y + x];
             switch (t) {
                 case RL_TileRock:
                     ;
-                    int wall = rl_map_room_wall(&map, RL_XY(x, y));
+                    int wall = rl_map_room_wall(map, RL_XY(x, y));
                     if (wall & RL_WallToEast || wall & RL_WallToWest)
                         printf("-");
                     else if (wall & RL_WallToSouth || wall & RL_WallToNorth)
@@ -89,8 +88,8 @@ int main(int argc, char **argv)
         printf("\n");
     }
 
-    rl_map_destroy(&map);
-    rl_bsp_destroy(&bsp);
+    rl_map_destroy(map);
+    rl_bsp_destroy(bsp);
 
     return 0;
 }
