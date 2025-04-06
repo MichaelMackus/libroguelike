@@ -59,7 +59,7 @@ int main(int argc, char **argv)
     int quit = 0;
     while (!quit) {
         // regenerate FOV
-        rl_fov_calculate_for_map(map, player, -1, true, rl_distance_euclidian);
+        rl_fov_calculate_for_map(map, player, -1, rl_distance_euclidian);
         // draw the map, only drawing previously seen tiles or tiles within the FOV
         for (y = 0; y < map->height; ++y) {
             for (x = 0; x < map->width; ++x) {
