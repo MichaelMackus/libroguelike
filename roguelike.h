@@ -297,7 +297,7 @@ void rl_dijkstra_score(RL_Graph *graph, RL_Point start, RL_DistanceFun distance_
 void rl_dijkstra_score_ex(RL_Graph *graph, RL_Point start, RL_ScoreFun score_f, void *score_context);
 
 // Create an unscored graph based on the 2d map. Make sure to call rl_graph_destroy when finished.
-RL_Graph *rl_graph_create(const RL_Map *map, RL_PassableFun passable_f, int allow_diagonal_neighbors);
+RL_Graph *rl_graph_create(const RL_Map *map, RL_PassableFun passable_f, bool allow_diagonal_neighbors);
 
 // Free graph memory.
 void rl_graph_destroy(RL_Graph *graph);
@@ -1313,7 +1313,7 @@ void rl_path_destroy(RL_Path *path)
     }
 }
 
-RL_Graph *rl_graph_create(const RL_Map *map, RL_PassableFun passable_f, int allow_diagonal_neighbors)
+RL_Graph *rl_graph_create(const RL_Map *map, RL_PassableFun passable_f, bool allow_diagonal_neighbors)
 {
     RL_Graph *graph = (RL_Graph*) rl_malloc(sizeof(*graph));
     rl_assert(graph);
