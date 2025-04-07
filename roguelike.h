@@ -1063,8 +1063,10 @@ RL_Heap *rl_heap_create(int capacity, int (*comparison_f)(const void *heap_item_
 
 void rl_heap_destroy(RL_Heap *h)
 {
-    if (h && h->heap) {
-        free(h->heap);
+    if (h) {
+        if (h->heap) {
+            free(h->heap);
+        }
         free(h);
     }
 }
