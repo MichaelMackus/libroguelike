@@ -1,6 +1,10 @@
 #ifndef RL_ROGUELIKE_H
 #define RL_ROGUELIKE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdlib.h>
 #include <stdbool.h>
 
@@ -379,7 +383,7 @@ RL_Map *rl_map_create(unsigned int width, unsigned int height)
     rl_assert(width > 0 && height > 0);
     RL_Map *map = NULL;
     // allocate all the memory we need at once
-    char *memory = rl_calloc(sizeof(*map) + sizeof(*map->tiles)*width*height + sizeof(*map->visibility)*width*height, 1);
+    char *memory = (char*) rl_calloc(sizeof(*map) + sizeof(*map->tiles)*width*height + sizeof(*map->visibility)*width*height, 1);
     rl_assert(memory);
     if (memory == NULL) return NULL;
     map = (RL_Map*) memory;
@@ -560,7 +564,7 @@ void rl_rng_destroy()
 RL_BSP *rl_bsp_create(unsigned int width, unsigned int height)
 {
     rl_assert(width > 0 && height > 0);
-    RL_BSP *bsp = rl_calloc(sizeof(*bsp), 1);
+    RL_BSP *bsp = (RL_BSP*) rl_calloc(sizeof(*bsp), 1);
     if (bsp == NULL) return NULL;
     bsp->width = width;
     bsp->height = height;
@@ -595,10 +599,10 @@ void rl_bsp_split(RL_BSP *node, unsigned int position, RL_SplitDirection directi
     if (direction == RL_SplitHorizontally && position >= node->width)
         return;
 
-    RL_BSP *left = rl_calloc(1, sizeof(RL_BSP));
+    RL_BSP *left = (RL_BSP*) rl_calloc(1, sizeof(RL_BSP));
     if (left == NULL)
         return;
-    RL_BSP *right = rl_calloc(1, sizeof(RL_BSP));
+    RL_BSP *right = (RL_BSP*) rl_calloc(1, sizeof(RL_BSP));
     if (right == NULL) {
         free(left);
         return;
@@ -766,7 +770,7 @@ static void rl_map_bsp_generate_room(RL_Map *map, unsigned int room_width, unsig
                     y == room_loc.y || y == room_loc.y + room_height - 1
                ) {
                 // set sides of room to walls
-                map->tiles[y*map->width + x] = 0;
+                map->tiles[y*map->width + x] = RL_TileRock;
             } else {
                 map->tiles[y*map->width + x] = RL_TileRoom;
             }
@@ -861,7 +865,7 @@ RL_BSP *rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config)
 // TODO check for pointers
 static inline double rl_mapgen_corridor_scorer(RL_GraphNode *current, RL_GraphNode *neighbor, void *context)
 {
-    RL_Map *map = context;
+    RL_Map *map = (RL_Map*) context;
     RL_Point start = current->point;
     RL_Point end = neighbor->point;
     double r = current->score + rl_distance_manhattan(start, end);
@@ -975,7 +979,7 @@ RL_Graph *rl_map_largest_connected_area(const RL_Map *map)
 {
     rl_assert(map);
     if (map == NULL) return NULL;
-    int *visited = rl_calloc(sizeof(*visited), map->width * map->height);
+    int *visited = (int*) rl_calloc(sizeof(*visited), map->width * map->height);
     rl_assert(visited);
     if (visited == NULL) return NULL;
     RL_Graph *floodfill = NULL; // largest floodfill
@@ -1034,12 +1038,12 @@ static int rl_heap_noop_comparison_f(const void *_a, const void *_b)
 
 RL_Heap *rl_heap_create(int capacity, int (*comparison_f)(const void *heap_item_a, const void *heap_item_b))
 {
-    RL_Heap *heap = rl_malloc(sizeof(*heap));
+    RL_Heap *heap = (RL_Heap*) rl_malloc(sizeof(*heap));
     rl_assert(heap);
     if (heap == NULL) {
         return NULL;
     }
-    heap->heap = rl_malloc(sizeof(*heap->heap) * capacity);
+    heap->heap = (void**) rl_malloc(sizeof(*heap->heap) * capacity);
     rl_assert(heap->heap);
     if (heap->heap == NULL) {
         free(heap);
@@ -1078,7 +1082,7 @@ bool rl_heap_insert(RL_Heap *h, void *item)
 
     if (h->len == h->cap) {
         // resize the heap
-        void **heap_items = rl_realloc(h->heap, sizeof(void*) * h->cap * 2);
+        void **heap_items = (void**) rl_realloc(h->heap, sizeof(void*) * h->cap * 2);
         rl_assert(heap_items);
         if (heap_items == NULL) {
             rl_heap_destroy(h);
@@ -1171,7 +1175,7 @@ static int rl_scored_graph_heap_comparison(const void *heap_item_a, const void *
 
 RL_Path *rl_path(RL_Point p)
 {
-    RL_Path *path = rl_malloc(sizeof(*path));
+    RL_Path *path = (RL_Path*) rl_malloc(sizeof(*path));
     rl_assert(path);
     if (path == NULL) return NULL;
     path->next = NULL;
@@ -1311,11 +1315,11 @@ void rl_path_destroy(RL_Path *path)
 
 RL_Graph *rl_graph_create(const RL_Map *map, RL_PassableFun passable_f, int allow_diagonal_neighbors)
 {
-    RL_Graph *graph = rl_malloc(sizeof(*graph));
+    RL_Graph *graph = (RL_Graph*) rl_malloc(sizeof(*graph));
     rl_assert(graph);
     if (graph == NULL) return NULL;
     size_t length = map->width * map->height;
-    RL_GraphNode *nodes = rl_calloc(sizeof(*nodes), length);
+    RL_GraphNode *nodes = (RL_GraphNode*) rl_calloc(sizeof(*nodes), length);
     rl_assert(nodes != NULL);
     if (nodes == NULL) {
         free(graph);
@@ -1374,9 +1378,10 @@ RL_Graph *rl_dijkstra_create(const RL_Map *map,
 
 // default scorer function for Dijkstra - this simply accepts a RL_DistanceFun as context and adds the current nodes
 // score to the result of the distance function
+struct rl_score_context { RL_DistanceFun fun; };
 double rl_dijkstra_default_score_f(RL_GraphNode *current, RL_GraphNode *neighbor, void *context)
 {
-    struct { RL_DistanceFun fun; } *distance_f = context;
+    struct rl_score_context *distance_f = (struct rl_score_context*) context;
 
     return current->score + distance_f->fun(current->point, neighbor->point);
 }
@@ -1550,4 +1555,9 @@ void rl_fov_calculate(void *context, RL_Point origin, int fov_radius, RL_Distanc
 }
 
 #endif
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif
