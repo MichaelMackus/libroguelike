@@ -444,19 +444,43 @@ bool rl_map_is_wall(const RL_Map *map, RL_Point point)
     return 0;
 }
 
-// TODO int connections = rl_wall_connections(map, coords) | rl_door_connections(map, coords); ?
+// checks if target tile is connecting from source (e.g. they can reach it)
+static double rl_distance_simple(RL_Point node, RL_Point end);
+bool rl_map_is_connecting(const RL_Map *map, RL_Point from, RL_Point target)
+{
+    // check that from passable neighbors can connect to target
+    for (int x = from.x - 1; x <= from.x + 1; ++x) {
+        for (int y = from.y - 1; y <= from.y + 1; ++y) {
+            if (!rl_map_in_bounds(map, RL_XY(x, y)) || !rl_map_is_passable(map, RL_XY(x, y)))
+                continue;
+            if (rl_map_tile_is(map, RL_XY(x, y), RL_TileDoor))
+                continue;
+            // this is a passable neighbor - check its neighbors to see if it can reach target
+            for (int x2 = x - 1; x2 <= x + 1; ++x2) {
+                for (int y2 = y - 1; y2 <= y + 1; ++y2) {
+                    if (!rl_map_in_bounds(map, RL_XY(x2, y2))) continue;
+                    if (x2 == target.x && y2 == target.y)
+                        return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
 int rl_map_wall(const RL_Map *map, RL_Point point)
 {
     int mask = 0;
     if (!rl_map_is_wall(map, point))
         return mask;
-    if (rl_map_is_wall(map, RL_XY(point.x + 1, point.y)))
+    if (rl_map_is_wall(map, RL_XY(point.x + 1, point.y)) && rl_map_is_connecting(map, point, RL_XY(point.x + 1, point.y)))
         mask |= RL_WallToEast;
-    if (rl_map_is_wall(map, RL_XY(point.x - 1, point.y)))
+    if (rl_map_is_wall(map, RL_XY(point.x - 1, point.y)) && rl_map_is_connecting(map, point, RL_XY(point.x - 1, point.y)))
         mask |= RL_WallToWest;
-    if (rl_map_is_wall(map, RL_XY(point.x,     point.y - 1)))
+    if (rl_map_is_wall(map, RL_XY(point.x,     point.y - 1)) && rl_map_is_connecting(map, point, RL_XY(point.x,     point.y - 1)))
         mask |= RL_WallToNorth;
-    if (rl_map_is_wall(map, RL_XY(point.x,     point.y + 1)))
+    if (rl_map_is_wall(map, RL_XY(point.x,     point.y + 1)) && rl_map_is_connecting(map, point, RL_XY(point.x,     point.y + 1)))
         mask |= RL_WallToSouth;
     return mask ? mask : RL_WallOther;
 }
