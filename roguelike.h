@@ -194,6 +194,9 @@ RL_Heap *rl_heap_create(int capacity, int (*comparison_f)(const void *heap_item_
 // Free up the allocated heap memory.
 void rl_heap_destroy(RL_Heap *h);
 
+// Return the length of the heap items
+int rl_heap_length(RL_Heap *h);
+
 // Insert item into the heap. This will resize the heap if necessary.
 bool rl_heap_insert(RL_Heap *h, void *item);
 
@@ -1038,10 +1041,16 @@ void rl_heap_destroy(RL_Heap *h)
     }
 }
 
+int rl_heap_length(RL_Heap *h)
+{
+    if (h == NULL) return 0;
+    return h->len;
+}
+
 bool rl_heap_insert(RL_Heap *h, void *item)
 {
     rl_assert(h != NULL);
-    if (h == NULL) return NULL;
+    if (h == NULL) return false;
 
     if (h->len == h->cap) {
         // resize the heap
@@ -1093,7 +1102,6 @@ static void rl_heap_remove(RL_Heap *h, int index)
 
 void *rl_heap_pop(RL_Heap *h)
 {
-    rl_assert(h);
     if (h == NULL) {
         return NULL;
     }
@@ -1109,7 +1117,6 @@ void *rl_heap_pop(RL_Heap *h)
 
 void *rl_heap_peek(RL_Heap *h)
 {
-    rl_assert(h);
     if (h == NULL) {
         return NULL;
     }
