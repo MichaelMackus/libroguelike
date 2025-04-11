@@ -14,7 +14,7 @@ void print_at(int x, int y, char c)
 
 int main()
 {
-    rl_rng_seed(time(0));
+    srand(time(0));
 
     RL_Map *map = rl_map_create(MAP_WIDTH, MAP_HEIGHT);
     system("clear");

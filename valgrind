@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# Simple script to ensure examples have no memory leaks.
+#
+# Note that the examples compiled with curses show they have possible leaks, but
+# those all seem to be generated from the ncurses library itself.
+
+if [ -z "$1" ]; then
+    exit 1
+fi
+
+valgrind --leak-check=full \
+         --show-leak-kinds=all \
+         --track-origins=yes \
+         --verbose \
+         --log-file=valgrind-out.txt \
+         ./$1

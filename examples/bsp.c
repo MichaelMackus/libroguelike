@@ -7,6 +7,7 @@
 #define WIDTH 80
 #define HEIGHT 30
 
+// buffer & rendering function to render a basic layout of the BSP tree
 char bsp_map[WIDTH * HEIGHT];
 void render_bsp(RL_BSP *node)
 {
@@ -43,10 +44,20 @@ int main(int argc, char **argv)
         seed = atol(argv[1]);
     }
     printf("Seed: %ld\n", seed);
-    rl_rng_seed(seed);
+    srand(seed);
     RL_Map *map = rl_map_create(WIDTH, HEIGHT);
-    RL_BSP *bsp = rl_mapgen_bsp(map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 1 });
+    RL_MapgenConfigBSP config = {
+        .room_min_width = 3,
+        .room_max_width = 5,
+        .room_min_height = 3,
+        .room_max_height = 5,
+        .max_bsp_splits = 5,
+        .draw_corridors = true,
+        .draw_doors = true,
+    };
+    RL_BSP *bsp = rl_mapgen_bsp_ex(map, config);
 
+    // render the layout of the BSP first for debugging
     render_bsp(bsp);
     for (y = 0; y < HEIGHT; ++y) {
         for (x = 0; x < WIDTH; ++x) {
@@ -58,6 +69,7 @@ int main(int argc, char **argv)
         printf("\n");
     }
 
+    // render the map
     for (y = 0; y < HEIGHT; ++y) {
         for (x = 0; x < WIDTH; ++x) {
             RL_Tile t = map->tiles[map->width*y + x];
@@ -82,6 +94,9 @@ int main(int argc, char **argv)
                     break;
                 case RL_TileDoor:
                     printf("+");
+                    break;
+                default:
+                    printf("?");
                     break;
             }
         }

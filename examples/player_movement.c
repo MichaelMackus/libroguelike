@@ -30,11 +30,12 @@ int main(int argc, char **argv)
     if (argc > 1) {
         seed = atol(argv[1]); // parse seed from CLI arg
     }
-    rl_rng_seed(seed);
+    srand(seed);
 
     // generate a random map with recursive BSP generation
     RL_Map *map = rl_map_create(WIDTH, HEIGHT);
-    RL_BSP *bsp = rl_mapgen_bsp(map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 1 });
+    RL_FOV *fov = rl_fov_create(WIDTH, HEIGHT);
+    rl_mapgen_bsp(map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 1 });
 
     // initialize curses (for player movement)
     initscr();
@@ -56,16 +57,18 @@ int main(int argc, char **argv)
         player.x = rl_rng_generate(0, WIDTH - 1);
         player.y = rl_rng_generate(0, HEIGHT - 1);
     }
+
+    // game loop
     int quit = 0;
     while (!quit) {
         // regenerate FOV
-        rl_fov_calculate_for_map(map, player, -1, rl_distance_euclidian);
+        rl_fov_calculate(fov, map, player, -1, rl_distance_euclidian);
         // draw the map, only drawing previously seen tiles or tiles within the FOV
         for (y = 0; y < map->height; ++y) {
             for (x = 0; x < map->width; ++x) {
                 if (y == player.y && x == player.x) {
                     mvaddch(y, x, '@');
-                } else if (rl_map_is_visible(map, RL_XY(x, y)) || rl_map_is_seen(map, RL_XY(x, y))) {
+                } else if (rl_fov_is_visible(fov, RL_XY(x, y)) || rl_fov_is_seen(fov, RL_XY(x, y))) {
                     RL_Tile t = map->tiles[map->width*y + x];
                     char ch = ' ';
                     switch (t) {
@@ -91,7 +94,7 @@ int main(int argc, char **argv)
                             ch = '+';
                             break;
                     }
-                    if (!rl_map_is_visible(map, RL_XY(x, y))) {
+                    if (!rl_fov_is_visible(fov, RL_XY(x, y))) {
                         // if not visible but previously seen, we draw in a muted grey
                         attroff(COLOR_PAIR(1));
                         attron(COLOR_PAIR(2));
@@ -138,7 +141,7 @@ int main(int argc, char **argv)
                         {
                             // if we have a mouse event & the destination is seen & passable, create a path to the destination
                             RL_Point dest = RL_XY(ev.x, ev.y);
-                            if ((rl_map_is_seen(map, dest) || rl_map_is_visible(map, dest)) && rl_map_is_passable(map, dest)) {
+                            if ((rl_fov_is_seen(fov, dest) || rl_fov_is_visible(fov, dest)) && rl_map_is_passable(map, dest)) {
                                 player_path = rl_path_create(map, player, dest, rl_distance_chebyshev, rl_map_is_passable);
                                 player_path = rl_path_walk(player_path); // skip first point
                             }
@@ -161,8 +164,8 @@ int main(int argc, char **argv)
     // cleanup
     endwin();
     printf("Seed: %ld\n", seed); // pass seed as first argument to re-use RNG
+    rl_fov_destroy(fov);
     rl_map_destroy(map);
-    rl_bsp_destroy(bsp);
 
     return 0;
 }

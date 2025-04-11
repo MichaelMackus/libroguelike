@@ -15,10 +15,10 @@ int main(int argc, char **argv)
         seed = atol(argv[1]);
     }
     printf("Seed: %ld\n", seed);
-    rl_rng_seed(seed);
+    srand(seed);
 
     RL_Map *map = rl_map_create(WIDTH, HEIGHT);
-    RL_BSP *bsp = rl_mapgen_bsp(map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 1 });
+    rl_mapgen_bsp(map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 1 });
 
     RL_Graph *floodfill = rl_map_largest_connected_area(map);
     for (y = 0; y < HEIGHT; ++y) {
@@ -62,7 +62,6 @@ int main(int argc, char **argv)
     }
 
     rl_map_destroy(map);
-    rl_bsp_destroy(bsp);
     rl_graph_destroy(floodfill);
 
     printf("Done\n");

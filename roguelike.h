@@ -36,31 +36,52 @@ extern "C" {
  * Generic structs for library.
  */
 
-typedef enum {
-    RL_TileRock = 0,
-    RL_TileRoom,
-    RL_TileCorridor,
-    RL_TileDoor,
-} RL_Tile;
+// each tile is the size of 1 byte, so it can be casted back & forth from char <-> RL_Tile
+typedef unsigned char RL_TileSize;
 
+// Generic dungeon map structure, supporting hex & square 2d maps, along with the associated tile enum.
+typedef enum {
+    RL_TileRock = ' ',
+    RL_TileRoom = '.',
+    RL_TileCorridor = '#',
+    RL_TileDoor = '+',
+} RL_Tile;
+typedef struct RL_Map {
+    unsigned int width;
+    unsigned int height;
+    RL_TileSize *tiles; // a sequential array of RL_Tiles, stride for each row equals the map width.
+} RL_Map;
+
+// Type of wall on the map - idea is they can be bitmasked together (e.g. for corners). See rl_map_wall and other
+// related functions.
+typedef enum {
+    RL_WallToWest  = 1,
+    RL_WallToEast  = 1 << 1,
+    RL_WallToNorth = 1 << 2,
+    RL_WallToSouth = 1 << 3,
+    RL_WallOther   = 1 << 7, // e.g. a wall that has no connecting walls
+} RL_Wall;
+
+// Structure containing information for the FOV algorithm, along with the associated visibility enum.
 typedef enum {
     RL_TileCannotSee = 0,
     RL_TileVisible,
     RL_TileSeen,
 } RL_TileVisibility;
-
-// Generic dungeon map structure, supporting hex & square 2d maps
-typedef struct RL_Map {
+typedef struct {
     unsigned int width;
     unsigned int height;
-    RL_Tile *tiles; // 2d array of Width*Height for 2d square map - by default 0 is the impassable/rock tile
-    RL_TileVisibility *visibility; // 2d array of Width*Height for checking tile visibility - must call rl_fov first to update visibility
-} RL_Map;
+    RL_TileSize *visibility; // a sequential array of RL_Visibility, stride for each row = the map width
+} RL_FOV;
 
+// A point on the map. The points are a float type for flexibility, but for most roguelikes they will probably be casted
+// from an integer type.
 typedef struct RL_Point {
     double x, y;
 } RL_Point;
-#define RL_XY(x, y) (RL_Point) { (double)x, (double)y }
+
+// Macro to easily create a RL_Point.
+#define RL_XY(x, y) (RL_Point) { (double)(x), (double)(y) }
 
 // BSP tree
 typedef struct RL_BSP {
@@ -79,21 +100,14 @@ typedef enum {
     RL_SplitVertically,   // split the BSP node on the y axis (splits height)
 } RL_SplitDirection;
 
-// Type of wall - idea is they can be bitmasked together (e.g. for corners)
-typedef enum {
-    RL_WallToWest  = 1,
-    RL_WallToEast  = 1 << 1,
-    RL_WallToNorth = 1 << 2,
-    RL_WallToSouth = 1 << 3,
-    RL_WallOther          = 1 << 7, // e.g. a wall that has no connecting walls
-} RL_Wall;
-
-// Represents a graph of nodes that has been scored for pathfinding (e.g. with the Dijkstra algorithm).
+// Max neighbors for a pathfinding node.
 #ifndef RL_MAX_NEIGHBOR_COUNT
 #define RL_MAX_NEIGHBOR_COUNT 8
 #endif
+
+// Represents a graph of pathfinding nodes that has been scored for pathfinding (e.g. with the Dijkstra algorithm).
 typedef struct RL_GraphNode {
-    double score; // will be DBL_MAX for an unreachable/unscored node in Dijkstra
+    double score; // will be DBL_MAX for an unreachable/unscored node in the Dijkstra algorithm
     RL_Point point;
     size_t neighbors_length;
     struct RL_GraphNode *neighbors[RL_MAX_NEIGHBOR_COUNT];
@@ -103,6 +117,8 @@ typedef struct RL_Graph {
     RL_GraphNode *nodes; // array of nodes - length will be the size of the map.width * map.height
 } RL_Graph;
 
+// A path is a linked list of paths. You can "walk" a path using rl_path_walk which will simultaneously free the
+// previous path.
 typedef struct RL_Path {
     RL_Point point;
     struct RL_Path *next;
@@ -125,13 +141,16 @@ typedef struct {
     unsigned int room_min_height;
     unsigned int room_max_height;
     unsigned int room_padding;
+    unsigned int max_bsp_splits; // maximum amount of BSP splits
     bool draw_corridors;
     bool draw_doors;
-    bool use_secret_passages;
 } RL_MapgenConfigBSP;
 
-// Generate map rooms with BSP split algorithm & connects corridors. Make sure to free the BSP with rl_bsp_destroy.
-RL_BSP *rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config);
+// Generate map rooms with BSP split & discard the BSP.
+void rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config);
+
+// Same as the above function but returns the generated BSP. Make sure to free the BSP with rl_bsp_destroy.
+RL_BSP *rl_mapgen_bsp_ex(RL_Map *map, RL_MapgenConfigBSP config);
 
 /**
  * Generic map helper functions.
@@ -151,8 +170,8 @@ bool rl_map_tile_is(const RL_Map *map, RL_Point point, RL_Tile tile);
 
 // A tile is considered a wall if it is touching a passable tile.
 //
-// Returns a bitmask of the RL_Wall enum. For example, a wall with a wall
-// tile to the south, west, and east would have a bitmask of 0b1011.
+// Returns a bitmask of the RL_Wall enum. For example, a wall with a wall tile to the south, west, and east would have a
+// bitmask of 0b1011.
 int rl_map_wall(const RL_Map *map, RL_Point point);
 
 // Is the tile a wall tile?
@@ -167,13 +186,8 @@ bool rl_map_is_room_wall(const RL_Map *map, RL_Point point);
 // A wall that is touching a room tile (e.g. to display it lit).
 int rl_map_room_wall(const RL_Map *map, RL_Point point);
 
-// Checks if a point is visible within FOV. Make sure to call rl_fov_calculate_for_map first.
-bool rl_map_is_visible(const RL_Map *map, RL_Point point);
-
-// Checks if a point has been seen within FOV. Make sure to call rl_fov_calculate_for_map first.
-bool rl_map_is_seen(const RL_Map *map, RL_Point point);
-
-// Returns a the largest connected area (of passable tiles) on the map.
+// Returns a the largest connected area (of passable tiles) on the map. Make sure to destroy the graph with
+// rl_graph_destroy after you are done.
 RL_Graph *rl_map_largest_connected_area(const RL_Map *map);
 
 /**
@@ -306,6 +320,12 @@ void rl_graph_destroy(RL_Graph *graph);
  * FOV
  */
 
+// Creates empty FOV and fills it with opaque tiles. Make sure to call rl_fov_destroy to clear memory.
+RL_FOV *rl_fov_create(unsigned int width, unsigned int height);
+
+// Frees map tile memory.
+void rl_fov_destroy(RL_FOV *fov);
+
 // Function to determine if a tile is considered Opaque for FOV calculation. Make sure you do bounds checking that the point is within your map.
 typedef bool (*RL_IsOpaqueFun)(RL_Point point, void *context);
 // Function to mark a tile as visible within the FOV. Make sure you do bounds checking that the point is within your map.
@@ -315,27 +335,31 @@ typedef void (*RL_MarkAsVisibleFun)(RL_Point point, void *context);
 // this is limited by RL_MAX_RECURSION).
 //
 // Note that this sets previously visible tiles to RL_TileSeen.
-void rl_fov_calculate_for_map(RL_Map *map, RL_Point start, int fov_radius, RL_DistanceFun distance_f);
+void rl_fov_calculate(RL_FOV *fov, const RL_Map *map, RL_Point start, int fov_radius, RL_DistanceFun distance_f);
 
 // Calculate FOV using simple shadowcasting algorithm. Set fov_radius to a negative value to have unlimited FOV (note
 // this is limited by RL_MAX_RECURSION).
 //
 // Generic version of above function.
-void rl_fov_calculate(void *context, RL_Point start, int fov_radius, RL_DistanceFun distance_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f);
+void rl_fov_calculate_ex(void *context, RL_Point start, int fov_radius, RL_DistanceFun distance_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f);
+
+// Checks if a point is visible within FOV. Make sure to call rl_fov_calculate_for_map first.
+bool rl_fov_is_visible(const RL_FOV *map, RL_Point point);
+
+// Checks if a point has been seen within FOV. Make sure to call rl_fov_calculate_for_map first.
+bool rl_fov_is_seen(const RL_FOV *map, RL_Point point);
 
 /**
  * Random number generation
  */
 
-// Uses stdlib by default. Define RL_RAND_F to implement your own implementation
-// (e.g. via another algorithm such as mtwister).
-void rl_rng_seed(unsigned int seed);
-
-// Free up internal RNG buffer(s) (for user-defined algorithms such as mtwister).
-void rl_rng_destroy();
-
 // Generate random number from min to max (inclusive).
-unsigned long rl_rng_generate(unsigned long min, unsigned long max);
+unsigned long rl_rng_stdlib_generate(unsigned long min, unsigned long max);
+
+// Define rl_rng_generate to override the internal RNG
+#ifndef rl_rng_generate
+#define rl_rng_generate rl_rng_stdlib_generate
+#endif
 
 #ifdef RL_IMPLEMENTATION
 
@@ -377,23 +401,28 @@ unsigned long rl_rng_generate(unsigned long min, unsigned long max);
 #define rl_realloc realloc
 #endif
 
+#ifndef rl_free
+#define rl_free free
+#endif
+
 RL_Map *rl_map_create(unsigned int width, unsigned int height)
 {
     rl_assert(width*height < UINT_MAX);
     rl_assert(width > 0 && height > 0);
     RL_Map *map = NULL;
     // allocate all the memory we need at once
-    char *memory = (char*) rl_calloc(sizeof(*map) + sizeof(*map->tiles)*width*height + sizeof(*map->visibility)*width*height, 1);
+    char *memory = (char*) rl_calloc(sizeof(*map) + sizeof(*map->tiles)*width*height, 1);
     rl_assert(memory);
     if (memory == NULL) return NULL;
     map = (RL_Map*) memory;
     map->width = width;
     map->height = height;
-    map->tiles = (RL_Tile*) (memory + sizeof(*map));
-    map->visibility = (RL_TileVisibility*) (memory + sizeof(*map) + sizeof(*map->tiles)*width*height);
+    map->tiles = (RL_TileSize*) (memory + sizeof(*map));
+    if (memset(map->tiles, RL_TileRock, sizeof(*map->tiles)*width*height) == NULL) {
+        rl_assert("Error initializing RL_Map tiles to RL_TileRock!" && false);
+    }
     rl_assert(map);
     rl_assert(map->tiles);
-    rl_assert(map->visibility);
 
     return map;
 }
@@ -401,7 +430,7 @@ RL_Map *rl_map_create(unsigned int width, unsigned int height)
 void rl_map_destroy(RL_Map *map)
 {
     if (map) {
-        free(map);
+        rl_free(map);
     }
 }
 
@@ -413,7 +442,9 @@ bool rl_map_in_bounds(const RL_Map *map, RL_Point point)
 bool rl_map_is_passable(const RL_Map *map, RL_Point point)
 {
     if (rl_map_in_bounds(map, point)) {
-        return map->tiles[(size_t)point.y * map->width + (size_t)point.x] != RL_TileRock;
+        return map->tiles[(size_t)point.y * map->width + (size_t)point.x] == RL_TileRoom ||
+               map->tiles[(size_t)point.y * map->width + (size_t)point.x] == RL_TileCorridor ||
+               map->tiles[(size_t)point.y * map->width + (size_t)point.x] == RL_TileDoor;
     }
 
     return 0;
@@ -422,7 +453,7 @@ bool rl_map_is_passable(const RL_Map *map, RL_Point point)
 RL_Tile *rl_map_tile(const RL_Map *map, RL_Point point)
 {
     if (rl_map_in_bounds(map, point)) {
-        return &map->tiles[(size_t)point.x + (size_t)point.y*map->width];
+        return (RL_Tile*) &map->tiles[(size_t)point.x + (size_t)point.y*map->width];
     }
 
     return NULL;
@@ -538,14 +569,7 @@ int rl_map_room_wall(const RL_Map *map, RL_Point point)
     return mask ? mask : RL_WallOther;
 }
 
-#ifndef RL_RAND_F
-void rl_rng_seed(unsigned int seed)
-{
-    if (seed) srand(seed);
-    else      srand(time(0));
-}
-
-unsigned long rl_rng_generate(unsigned long min, unsigned long max)
+unsigned long rl_rng_stdlib_generate(unsigned long min, unsigned long max)
 {
     rl_assert(max >= min);
     rl_assert(max < RAND_MAX);
@@ -555,11 +579,6 @@ unsigned long rl_rng_generate(unsigned long min, unsigned long max)
 
     return min + rand() / (RAND_MAX / (max - min + 1) + 1);
 }
-
-void rl_rng_destroy()
-{
-}
-#endif
 
 RL_BSP *rl_bsp_create(unsigned int width, unsigned int height)
 {
@@ -582,7 +601,7 @@ void rl_bsp_destroy(RL_BSP* root)
             rl_bsp_destroy(root->right);
             root->right = NULL;
         }
-        free(root);
+        rl_free(root);
     }
 }
 
@@ -604,7 +623,7 @@ void rl_bsp_split(RL_BSP *node, unsigned int position, RL_SplitDirection directi
         return;
     RL_BSP *right = (RL_BSP*) rl_calloc(1, sizeof(RL_BSP));
     if (right == NULL) {
-        free(left);
+        rl_free(left);
         return;
     }
 
@@ -639,9 +658,11 @@ void rl_bsp_recursive_split(RL_BSP *root, unsigned int min_width, unsigned int m
 {
     rl_assert(root);
     rl_assert(min_width > 0 && min_height > 0 && root != NULL);
-    rl_assert(min_width < root->width);
-    rl_assert(min_height < root->height);
 
+    if (min_width >= root->width)
+        return;
+    if (min_height >= root->height)
+        return;
     if (root == NULL)
         return;
     if (max_recursion <= 0)
@@ -829,8 +850,15 @@ static void rl_map_bsp_generate_rooms(RL_BSP *node, RL_Map *map, unsigned int ro
     }
 }
 
+void rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config)
+{
+    memset(map->tiles, (unsigned char) RL_TileRock, map->width*map->height*sizeof(*map->tiles));
+    RL_BSP *bsp = rl_mapgen_bsp_ex(map, config);
+    rl_bsp_destroy(bsp);
+}
+
 static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, int draw_doors);
-RL_BSP *rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config)
+RL_BSP *rl_mapgen_bsp_ex(RL_Map *map, RL_MapgenConfigBSP config)
 {
     rl_assert(map);
     rl_assert(config.room_min_width > 0 && config.room_max_width >= config.room_min_width && config.room_min_height > 0 && config.room_max_height >= config.room_min_height);
@@ -846,7 +874,7 @@ RL_BSP *rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config)
         return NULL;
     }
 
-    rl_bsp_recursive_split(root, config.room_max_width + config.room_padding, config.room_max_height + config.room_padding, RL_MAX_RECURSION);
+    rl_bsp_recursive_split(root, config.room_max_width + config.room_padding, config.room_max_height + config.room_padding, config.max_bsp_splits);
     rl_map_bsp_generate_rooms(root, map, config.room_min_width, config.room_max_width, config.room_min_height, config.room_max_height, config.room_padding);
 
     // TODO not working if map filled with RL_TileRoom?
@@ -930,6 +958,7 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, int draw_
         rl_assert(!(dig_start.x == dig_end.x && dig_start.y == dig_end.y));
 
         // carve out corridors
+        // TODO this should not be a hard dependency - need an ifdef since this is causing memory issues on the poor little 6502
         rl_dijkstra_score_ex(graph, dig_end, rl_mapgen_corridor_scorer, map);
         RL_Path *path = rl_path_create_from_graph(graph, dig_start);
         rl_assert(path);
@@ -955,26 +984,6 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, int draw_
     rl_graph_destroy(graph);
 }
 
-bool rl_map_is_visible(const RL_Map *map, RL_Point point)
-{
-    rl_assert(map);
-    if (map == NULL) return false;
-    if (!rl_map_in_bounds(map, point)) {
-        return false;
-    }
-    return map->visibility[(int)point.x + (int)point.y*map->width] == RL_TileVisible;
-}
-
-bool rl_map_is_seen(const RL_Map *map, RL_Point point)
-{
-    rl_assert(map);
-    if (map == NULL) return false;
-    if (!rl_map_in_bounds(map, point)) {
-        return false;
-    }
-    return map->visibility[(int)point.x + (int)point.y*map->width] == RL_TileSeen;
-}
-
 RL_Graph *rl_map_largest_connected_area(const RL_Map *map)
 {
     rl_assert(map);
@@ -990,7 +999,7 @@ RL_Graph *rl_map_largest_connected_area(const RL_Map *map)
                 RL_Graph *test = rl_dijkstra_create(map, RL_XY(x, y), NULL, rl_map_is_passable);
                 rl_assert(test);
                 if (test == NULL) {
-                    free(visited);
+                    rl_free(visited);
                     if (floodfill) {
                         rl_graph_destroy(floodfill);
                     }
@@ -1016,7 +1025,7 @@ RL_Graph *rl_map_largest_connected_area(const RL_Map *map)
         }
     }
 
-    free(visited);
+    rl_free(visited);
 
     return floodfill;
 }
@@ -1046,7 +1055,7 @@ RL_Heap *rl_heap_create(int capacity, int (*comparison_f)(const void *heap_item_
     heap->heap = (void**) rl_malloc(sizeof(*heap->heap) * capacity);
     rl_assert(heap->heap);
     if (heap->heap == NULL) {
-        free(heap);
+        rl_free(heap);
         return NULL;
     }
 
@@ -1065,9 +1074,9 @@ void rl_heap_destroy(RL_Heap *h)
 {
     if (h) {
         if (h->heap) {
-            free(h->heap);
+            rl_free(h->heap);
         }
-        free(h);
+        rl_free(h);
     }
 }
 
@@ -1303,7 +1312,7 @@ RL_Path *rl_path_walk(RL_Path *path)
 {
     if (!path) return NULL;
     RL_Path *next = path->next;
-    free(path);
+    rl_free(path);
 
     return next;
 }
@@ -1324,7 +1333,7 @@ RL_Graph *rl_graph_create(const RL_Map *map, RL_PassableFun passable_f, bool all
     RL_GraphNode *nodes = (RL_GraphNode*) rl_calloc(sizeof(*nodes), length);
     rl_assert(nodes != NULL);
     if (nodes == NULL) {
-        free(graph);
+        rl_free(graph);
         return NULL;
     }
     for (unsigned int x=0; x<map->width; x++) {
@@ -1439,9 +1448,34 @@ void rl_graph_destroy(RL_Graph *graph)
 {
     if (graph) {
         if (graph->nodes) {
-            free(graph->nodes);
+            rl_free(graph->nodes);
         }
-        free(graph);
+        rl_free(graph);
+    }
+}
+
+RL_FOV *rl_fov_create(unsigned int width, unsigned int height)
+{
+    rl_assert(width*height < UINT_MAX); // TODO do this properly
+    RL_FOV *fov = NULL;
+    // allocate all the memory we need at once
+    char *memory = (char*) rl_calloc(sizeof(*fov) + sizeof(*fov->visibility)*width*height, 1);
+    rl_assert(memory);
+    if (memory == NULL) return NULL;
+    fov = (RL_FOV*) memory;
+    fov->width = width;
+    fov->height = height;
+    fov->visibility = (RL_TileSize*) (memory + sizeof(*fov));
+    rl_assert(fov);
+    rl_assert(fov->visibility);
+
+    return fov;
+}
+
+void rl_fov_destroy(RL_FOV *fov)
+{
+    if (fov) {
+        rl_free(fov);
     }
 }
 
@@ -1515,24 +1549,29 @@ void rl_fov_calculate_recursive(void *map, RL_Point origin, int fov_radius, RL_D
     }
 }
 
-void rl_map_mark_visible_f(RL_Point p, void *context)
+struct RL_FOVMap {
+    RL_FOV *fov;
+    const RL_Map *map;
+};
+
+void rl_fovmap_mark_visible_f(RL_Point p, void *context)
 {
-    RL_Map *map = (RL_Map*) context;
-    if (rl_map_in_bounds(map, p)) {
-        map->visibility[(int)p.x + (int)p.y*map->width] = RL_TileVisible;
+    struct RL_FOVMap *map = (struct RL_FOVMap*) context;
+    if (rl_map_in_bounds(map->map, p)) {
+        map->fov->visibility[(int)p.x + (int)p.y*map->map->width] = RL_TileVisible;
     }
 }
 
-bool rl_map_opaque_f(RL_Point p, void *context)
+bool rl_fovmap_opaque_f(RL_Point p, void *context)
 {
-    RL_Map *map = (RL_Map*) context;
-    if (!rl_map_in_bounds(map, p)) {
+    struct RL_FOVMap *map = (struct RL_FOVMap*) context;
+    if (!rl_map_in_bounds(map->map, p)) {
         return true;
     }
-    return rl_map_is_passable(map, p);
+    return rl_map_is_passable(map->map, p);
 }
 
-void rl_fov_calculate_for_map(RL_Map *map, RL_Point origin, int fov_radius, RL_DistanceFun distance_f)
+void rl_fov_calculate(RL_FOV *fov, const RL_Map *map, RL_Point origin, int fov_radius, RL_DistanceFun distance_f)
 {
     if (!rl_map_in_bounds(map, origin)) {
         return;
@@ -1540,21 +1579,45 @@ void rl_fov_calculate_for_map(RL_Map *map, RL_Point origin, int fov_radius, RL_D
     // set previously visible tiles to seen
     for (unsigned int x=0; x<map->width; ++x) {
         for (unsigned int y=0; y<map->height; ++y) {
-            if (map->visibility[x + y*map->width] == RL_TileVisible) {
-                map->visibility[x + y*map->width] = RL_TileSeen;
+            if (fov->visibility[x + y*map->width] == RL_TileVisible) {
+                fov->visibility[x + y*map->width] = RL_TileSeen;
             }
         }
     }
-    rl_fov_calculate(map, origin, fov_radius, distance_f, rl_map_opaque_f, rl_map_mark_visible_f);
+    struct RL_FOVMap fovmap;
+    fovmap.map = map;
+    fovmap.fov = fov;
+    rl_fov_calculate_ex(&fovmap, origin, fov_radius, distance_f, rl_fovmap_opaque_f, rl_fovmap_mark_visible_f);
 }
 
-void rl_fov_calculate(void *context, RL_Point origin, int fov_radius, RL_DistanceFun distance_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f)
+void rl_fov_calculate_ex(void *context, RL_Point origin, int fov_radius, RL_DistanceFun distance_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f)
 {
     mark_visible_f(origin, context);
     for (int octant=0; octant<8; ++octant) {
         rl_fov_calculate_recursive(context, origin, fov_radius, distance_f, opaque_f, mark_visible_f, octant, 1, (RL_Slope) { 1, 1 }, (RL_Slope) { 0, 1 });
     }
 }
+
+bool rl_fov_is_visible(const RL_FOV *map, RL_Point point)
+{
+    rl_assert(map);
+    if (map == NULL) return false;
+    if (!rl_map_in_bounds((const RL_Map*) map, point)) {
+        return false;
+    }
+    return map->visibility[(int)point.x + (int)point.y*map->width] == RL_TileVisible;
+}
+
+bool rl_fov_is_seen(const RL_FOV *map, RL_Point point)
+{
+    rl_assert(map);
+    if (map == NULL) return false;
+    if (!rl_map_in_bounds((const RL_Map*) map, point)) {
+        return false;
+    }
+    return map->visibility[(int)point.x + (int)point.y*map->width] == RL_TileSeen;
+}
+
 
 #endif
 

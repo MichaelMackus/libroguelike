@@ -6,7 +6,7 @@
 
 int main()
 {
-    rl_rng_seed(time(0));
+    srand(time(0));
 
     RL_Map *map = rl_map_create(100, 40);
     printf("%d x %d\n", map->width, map->height);

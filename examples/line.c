@@ -18,7 +18,7 @@ int main(int argc, char **argv)
     if (argc > 1) {
         seed = atol(argv[1]); // parse seed from CLI arg
     }
-    rl_rng_seed(seed);
+    srand(seed);
 
     RL_Map *map = rl_map_create(MAP_WIDTH, MAP_HEIGHT);
     system("clear");

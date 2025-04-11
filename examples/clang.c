@@ -3,10 +3,10 @@
 #define RL_IMPLEMENTATION
 #include "../roguelike.h"
 
-#define WIDTH 80
-#define HEIGHT 30
+#define WIDTH 40
+#define HEIGHT 15
 
-int main()
+int main(void)
 {
     srand(time(0));
     RL_Map *map = rl_map_create(WIDTH, HEIGHT);
@@ -14,7 +14,7 @@ int main()
 
     for (int y = 0; y < HEIGHT; ++y) {
         for (int x = 0; x < WIDTH; ++x) {
-            RL_Tile t = (RL_Tile) map->tiles[map->width*y + x];
+            RL_Tile t = map->tiles[map->width*y + x];
             switch (t) {
                 case RL_TileRock:
                     {
