@@ -738,8 +738,8 @@ bool rl_bsp_recursive_split(RL_BSP *root, unsigned int min_width, unsigned int m
     if (!rl_bsp_recursive_split(left, min_width, min_height, max_recursion - 1) ||
         !rl_bsp_recursive_split(right, min_width, min_height, max_recursion - 1)
     ) {
-        free(left);
-        free(right);
+        rl_free(left);
+        rl_free(right);
         root->left = root->right = NULL;
 
         return true;
