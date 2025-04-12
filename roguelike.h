@@ -37,7 +37,7 @@ extern "C" {
  */
 
 // each tile is the size of 1 byte, so it can be casted back & forth from char <-> RL_Tile
-typedef unsigned char RL_TileSize;
+typedef unsigned char RL_Byte;
 
 // Generic dungeon map structure, supporting hex & square 2d maps, along with the associated tile enum.
 typedef enum {
@@ -49,7 +49,7 @@ typedef enum {
 typedef struct RL_Map {
     unsigned int width;
     unsigned int height;
-    RL_TileSize *tiles; // a sequential array of RL_Tiles, stride for each row equals the map width.
+    RL_Byte *tiles; // a sequential array of RL_Tiles, stride for each row equals the map width.
 } RL_Map;
 
 // Type of wall on the map - idea is they can be bitmasked together (e.g. for corners). See rl_map_wall and other
@@ -71,7 +71,7 @@ typedef enum {
 typedef struct {
     unsigned int width;
     unsigned int height;
-    RL_TileSize *visibility; // a sequential array of RL_Visibility, stride for each row = the map width
+    RL_Byte *visibility; // a sequential array of RL_Visibility, stride for each row = the map width
 } RL_FOV;
 
 // A point on the map. The points are a float type for flexibility, but for most roguelikes they will probably be casted
@@ -164,7 +164,7 @@ bool rl_map_in_bounds(const RL_Map *map, RL_Point point);
 bool rl_map_is_passable(const RL_Map *map, RL_Point point);
 
 // Get tile at point
-RL_Tile *rl_map_tile(const RL_Map *map, RL_Point point);
+RL_Byte *rl_map_tile(const RL_Map *map, RL_Point point);
 
 // Returns 1 if tile at point matches given parameter.
 bool rl_map_tile_is(const RL_Map *map, RL_Point point, RL_Tile tile);
@@ -173,7 +173,7 @@ bool rl_map_tile_is(const RL_Map *map, RL_Point point, RL_Tile tile);
 //
 // Returns a bitmask of the RL_Wall enum. For example, a wall with a wall tile to the south, west, and east would have a
 // bitmask of 0b1011.
-int rl_map_wall(const RL_Map *map, RL_Point point);
+RL_Byte rl_map_wall(const RL_Map *map, RL_Point point);
 
 // Is the tile a wall tile?
 bool rl_map_is_wall(const RL_Map *map, RL_Point point);
@@ -185,7 +185,7 @@ bool rl_map_is_corner_wall(const RL_Map *map, RL_Point point);
 bool rl_map_is_room_wall(const RL_Map *map, RL_Point point);
 
 // A wall that is touching a room tile (e.g. to display it lit).
-int rl_map_room_wall(const RL_Map *map, RL_Point point);
+RL_Byte rl_map_room_wall(const RL_Map *map, RL_Point point);
 
 // Returns a the largest connected area (of passable tiles) on the map. Make sure to destroy the graph with
 // rl_graph_destroy after you are done.
@@ -423,7 +423,7 @@ RL_Map *rl_map_create(unsigned int width, unsigned int height)
     map = (RL_Map*) memory;
     map->width = width;
     map->height = height;
-    map->tiles = (RL_TileSize*) (memory + sizeof(*map));
+    map->tiles = (RL_Byte*) (memory + sizeof(*map));
     if (memset(map->tiles, RL_TileRock, sizeof(*map->tiles)*width*height) == NULL) {
         rl_assert("Error initializing RL_Map tiles to RL_TileRock!" && false);
     }
@@ -456,10 +456,10 @@ bool rl_map_is_passable(const RL_Map *map, RL_Point point)
     return 0;
 }
 
-RL_Tile *rl_map_tile(const RL_Map *map, RL_Point point)
+RL_Byte *rl_map_tile(const RL_Map *map, RL_Point point)
 {
     if (rl_map_in_bounds(map, point)) {
-        return (RL_Tile*) &map->tiles[(size_t)point.x + (size_t)point.y*map->width];
+        return &map->tiles[(size_t)point.x + (size_t)point.y*map->width];
     }
 
     return NULL;
@@ -510,9 +510,9 @@ bool rl_map_is_connecting(const RL_Map *map, RL_Point from, RL_Point target)
     return false;
 }
 
-int rl_map_wall(const RL_Map *map, RL_Point point)
+RL_Byte rl_map_wall(const RL_Map *map, RL_Point point)
 {
-    int mask = 0;
+    RL_Byte mask = 0;
     if (!rl_map_is_wall(map, point))
         return mask;
     if (rl_map_is_wall(map, RL_XY(point.x + 1, point.y)) && rl_map_is_connecting(map, point, RL_XY(point.x + 1, point.y)))
@@ -559,9 +559,9 @@ bool rl_map_is_room_wall(const RL_Map *map, RL_Point point)
            rl_map_tile_is(map, (RL_Point){ x - 1, y + 1 }, RL_TileRoom);
 }
 
-int rl_map_room_wall(const RL_Map *map, RL_Point point)
+RL_Byte rl_map_room_wall(const RL_Map *map, RL_Point point)
 {
-    int mask = 0;
+    RL_Byte mask = 0;
     if (!rl_map_is_room_wall(map, point))
         return mask;
     if (rl_map_is_room_wall(map, RL_XY(point.x + 1, point.y)))
@@ -922,7 +922,7 @@ RL_BSP *rl_mapgen_bsp_ex(RL_Map *map, RL_MapgenConfigBSP config)
     rl_assert(map);
     rl_assert(config.room_min_width > 0 && config.room_max_width >= config.room_min_width && config.room_min_height > 0 && config.room_max_height >= config.room_min_height);
     rl_assert(config.room_max_width <= map->width && config.room_max_height <= map->height);
-    memset(map->tiles, (unsigned char) RL_TileRock, map->width*map->height*sizeof(*map->tiles));
+    memset(map->tiles, (RL_Byte) RL_TileRock, map->width*map->height*sizeof(*map->tiles));
 
     if (map == NULL) {
         return NULL;
@@ -1545,7 +1545,7 @@ RL_FOV *rl_fov_create(unsigned int width, unsigned int height)
     fov = (RL_FOV*) memory;
     fov->width = width;
     fov->height = height;
-    fov->visibility = (RL_TileSize*) (memory + sizeof(*fov));
+    fov->visibility = (RL_Byte*) (memory + sizeof(*fov));
     rl_assert(fov);
     rl_assert(fov->visibility);
 
