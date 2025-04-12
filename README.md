@@ -7,7 +7,7 @@ useful for roguelike devs, but has functionality that should be useful to most
 See the examples folder - [examples/simple.c](./examples/simple.c) contains a
 simplified example with no dynamic memory starting with a predetermined map +
 FOV, [examples/bsp.c](./examples/bsp.c) is a minimal example for dungeon
-generation, and [examples/player_movement.c](./exapmles/player_movement.c) is a
+generation, and [examples/player_movement.c](./examples/player_movement.c) is a
 more detailed example including FOV and basic player movement.
 
 Note that the interface is considered unstable. This is in its very early
