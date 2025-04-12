@@ -143,6 +143,7 @@ typedef struct {
     unsigned int room_padding;
     unsigned int max_bsp_splits; // maximum amount of BSP splits
     bool draw_corridors;
+    bool connect_corridors_randomly; // for more circular maps
     bool draw_doors;
 } RL_MapgenConfigBSP;
 
@@ -238,7 +239,9 @@ void rl_bsp_destroy(RL_BSP *root);
 void rl_bsp_split(RL_BSP *node, unsigned int position, RL_SplitDirection direction);
 
 // Recursively split the BSP. Used for map generation.
-void rl_bsp_recursive_split(RL_BSP *root, unsigned int min_width, unsigned int min_height, unsigned int max_recursion);
+//
+// Returns true if the BSP was able to split at least once
+bool rl_bsp_recursive_split(RL_BSP *root, unsigned int min_width, unsigned int min_height, unsigned int max_recursion);
 
 // Returns 1 if the node is a leaf node.
 bool rl_bsp_is_leaf(RL_BSP *node);
@@ -247,8 +250,11 @@ bool rl_bsp_is_leaf(RL_BSP *node);
 // node).
 RL_BSP *rl_bsp_sibling(RL_BSP *node);
 
-// Return the next node to the right (at the same depth) if it exists.
-RL_BSP *rl_bsp_next_node(RL_BSP *node);
+// Returns amount of leaves in tree.
+size_t rl_bsp_leaf_count(RL_BSP *root);
+
+// Return the next leaf node to the right if it exists.
+RL_BSP *rl_bsp_next_leaf(RL_BSP *node);
 
 /**
  * Pathfinding
@@ -654,19 +660,19 @@ void rl_bsp_split(RL_BSP *node, unsigned int position, RL_SplitDirection directi
     node->right = right;
 }
 
-void rl_bsp_recursive_split(RL_BSP *root, unsigned int min_width, unsigned int min_height, unsigned int max_recursion)
+bool rl_bsp_recursive_split(RL_BSP *root, unsigned int min_width, unsigned int min_height, unsigned int max_recursion)
 {
     rl_assert(root);
     rl_assert(min_width > 0 && min_height > 0 && root != NULL);
 
-    if (min_width >= root->width)
-        return;
-    if (min_height >= root->height)
-        return;
+    if (min_width > root->width)
+        return false;
+    if (min_height > root->height)
+        return false;
     if (root == NULL)
-        return;
+        return false;
     if (max_recursion <= 0)
-        return;
+        return false;
 
     rl_assert(RL_MAPGEN_BSP_DEVIATION >= 0.0 && RL_MAPGEN_BSP_DEVIATION <= 1.0);
 
@@ -693,7 +699,7 @@ void rl_bsp_recursive_split(RL_BSP *root, unsigned int min_width, unsigned int m
     if (dir == RL_SplitHorizontally) {
         // cannot split if current node size is too small
         if (width < min_width*2)
-            return;
+            return false;
 
         unsigned int center = width / 2;
         unsigned int from = center - (center * RL_MAPGEN_BSP_DEVIATION);
@@ -707,7 +713,7 @@ void rl_bsp_recursive_split(RL_BSP *root, unsigned int min_width, unsigned int m
     } else {
         // cannot split if current node size is too small
         if (height < min_height*2)
-            return;
+            return false;
 
         unsigned int center = height / 2;
         unsigned int from = center - (center * RL_MAPGEN_BSP_DEVIATION);
@@ -727,10 +733,19 @@ void rl_bsp_recursive_split(RL_BSP *root, unsigned int min_width, unsigned int m
     RL_BSP *right = root->right;
 
     if (left == NULL || right == NULL)
-        return;
+        return false;
 
-    rl_bsp_recursive_split(left, min_width, min_height, max_recursion - 1);
-    rl_bsp_recursive_split(right, min_width, min_height, max_recursion - 1);
+    if (!rl_bsp_recursive_split(left, min_width, min_height, max_recursion - 1) ||
+        !rl_bsp_recursive_split(right, min_width, min_height, max_recursion - 1)
+    ) {
+        free(left);
+        free(right);
+        root->left = root->right = NULL;
+
+        return true;
+    }
+
+    return true;
 }
 
 bool rl_bsp_is_leaf(RL_BSP *node)
@@ -778,6 +793,51 @@ RL_BSP *rl_bsp_next_node(RL_BSP *node)
 
     // LOOP up until we are on the left, then go back down
     return rl_bsp_next_node_recursive(node, 0);
+}
+
+RL_BSP *rl_bsp_next_leaf_recursive_down(RL_BSP *node)
+{
+    if (node == NULL)
+        return NULL;
+    if (rl_bsp_is_leaf(node)) // found the node
+        return node;
+    if (node->left == NULL)
+        return NULL;
+    return rl_bsp_next_leaf_recursive_down(node->left);
+}
+RL_BSP *rl_bsp_next_leaf_recursive(RL_BSP *node)
+{
+    if (node == NULL || node->parent == NULL)
+        return NULL;
+    if (node->parent->left == node) // traverse back down
+        return rl_bsp_next_leaf_recursive_down(node->parent->right);
+    return rl_bsp_next_leaf_recursive(node->parent);
+}
+RL_BSP *rl_bsp_next_leaf(RL_BSP *node)
+{
+    if (node == NULL || node->parent == NULL)
+        return NULL;
+    rl_assert(rl_bsp_is_leaf(node));
+
+    // LOOP up until we are on the left, then go back down
+    return rl_bsp_next_leaf_recursive(node);
+}
+
+size_t rl_bsp_leaf_count(RL_BSP *root)
+{
+    if (root == NULL) return 0;
+    rl_assert(root->parent == NULL);
+    // find first leaf
+    RL_BSP *node = root;
+    while (node->left != NULL) {
+        node = node->left;
+    }
+    // count leaves
+    int count = 1;
+    while ((node = rl_bsp_next_leaf(node)) != NULL) {
+        count++;
+    }
+    return count;
 }
 
 static void rl_map_bsp_generate_room(RL_Map *map, unsigned int room_width, unsigned int room_height, RL_Point room_loc)
@@ -852,17 +912,17 @@ static void rl_map_bsp_generate_rooms(RL_BSP *node, RL_Map *map, unsigned int ro
 
 void rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config)
 {
-    memset(map->tiles, (unsigned char) RL_TileRock, map->width*map->height*sizeof(*map->tiles));
     RL_BSP *bsp = rl_mapgen_bsp_ex(map, config);
     rl_bsp_destroy(bsp);
 }
 
-static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, int draw_doors);
+static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, bool draw_doors, bool connect_randomly);
 RL_BSP *rl_mapgen_bsp_ex(RL_Map *map, RL_MapgenConfigBSP config)
 {
     rl_assert(map);
     rl_assert(config.room_min_width > 0 && config.room_max_width >= config.room_min_width && config.room_min_height > 0 && config.room_max_height >= config.room_min_height);
     rl_assert(config.room_max_width <= map->width && config.room_max_height <= map->height);
+    memset(map->tiles, (unsigned char) RL_TileRock, map->width*map->height*sizeof(*map->tiles));
 
     if (map == NULL) {
         return NULL;
@@ -877,9 +937,24 @@ RL_BSP *rl_mapgen_bsp_ex(RL_Map *map, RL_MapgenConfigBSP config)
     rl_bsp_recursive_split(root, config.room_max_width + config.room_padding, config.room_max_height + config.room_padding, config.max_bsp_splits);
     rl_map_bsp_generate_rooms(root, map, config.room_min_width, config.room_max_width, config.room_min_height, config.room_max_height, config.room_padding);
 
-    // TODO not working if map filled with RL_TileRoom?
     if (config.draw_corridors) {
-        rl_mapgen_bsp_connect_corridors(map, root, config.draw_doors);
+        rl_mapgen_bsp_connect_corridors(map, root, config.draw_doors, config.connect_corridors_randomly);
+        if (config.connect_corridors_randomly) {
+            // cull non-connected tiles
+            RL_Graph *floodfill = rl_map_largest_connected_area(map);
+            rl_assert(floodfill);
+            if (floodfill) {
+                for (size_t x=0; x < map->width; ++x) {
+                    for (size_t y=0; y < map->height; ++y) {
+                        if (floodfill->nodes[x + y*map->width].score == DBL_MAX) {
+                            // set unreachable tiles to rock
+                            map->tiles[x + y*map->width] = RL_TileRock;
+                        }
+                    }
+                }
+                rl_graph_destroy(floodfill);
+            }
+        }
     }
 
     // if (config.use_secret_passages) {
@@ -911,7 +986,7 @@ static inline double rl_mapgen_corridor_scorer(RL_GraphNode *current, RL_GraphNo
     return r;
 }
 
-static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, int draw_doors)
+static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, bool draw_doors, bool connect_randomly)
 {
     rl_assert(map && root);
     if (!map || !root) return;
@@ -921,20 +996,32 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, int draw_
     while (leftmost_node->left != NULL) {
         leftmost_node = leftmost_node->left;
     }
+    rl_assert(leftmost_node && rl_bsp_is_leaf(leftmost_node));
     RL_BSP *node = leftmost_node;
     RL_Graph *graph = rl_graph_create(map, NULL, 0);
+    int leaf_count = rl_bsp_leaf_count(root);
     while (node) {
-        RL_BSP *sibling = rl_bsp_next_node(node);
+        RL_BSP *sibling;
 
-        if (sibling == NULL) {
-            if (node->parent) {
-                rl_assert(node->parent->right == node);
+        if (connect_randomly) {
+            // find random sibling
+            // TODO this isn't working since its not deterministic if all get connected
+            rl_assert(leaf_count > 1);
+            do {
+                int target = rl_rng_generate(0, leaf_count - 1);
+                sibling = leftmost_node;
+                for (int i = 0; i < target; i++) {
+                    sibling = rl_bsp_next_leaf(sibling);
+                }
+            } while (sibling == node);
+        } else {
+            sibling = rl_bsp_next_leaf(node);
+            if (sibling == NULL) {
+                break;
             }
-            // find leftmost node at higher depth
-            node = leftmost_node->parent;
-            leftmost_node = node;
-            continue;
         }
+
+        rl_assert(sibling);
 
         // floodfill the rooms to find the center
         // TODO find a random point on a wall that isn't a corner
@@ -973,12 +1060,7 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, int draw_
         }
 
         // find start node for next loop iteration
-        node = rl_bsp_next_node(sibling);
-        if (node == NULL) {
-            // if we're at the last node in this depth, connect parents
-            node = leftmost_node->parent;
-            leftmost_node = leftmost_node->parent;
-        }
+        node = rl_bsp_next_leaf(node);
     }
 
     rl_graph_destroy(graph);
@@ -1312,6 +1394,7 @@ RL_Path *rl_path_walk(RL_Path *path)
 {
     if (!path) return NULL;
     RL_Path *next = path->next;
+    path->next = NULL;
     rl_free(path);
 
     return next;
@@ -1456,7 +1539,8 @@ void rl_graph_destroy(RL_Graph *graph)
 
 RL_FOV *rl_fov_create(unsigned int width, unsigned int height)
 {
-    rl_assert(width*height < UINT_MAX); // TODO do this properly
+    rl_assert(width > 0 && height > 0);
+    rl_assert(width != UINT_MAX && !(width > UINT_MAX / height)); // check for overflow
     RL_FOV *fov = NULL;
     // allocate all the memory we need at once
     char *memory = (char*) rl_calloc(sizeof(*fov) + sizeof(*fov->visibility)*width*height, 1);

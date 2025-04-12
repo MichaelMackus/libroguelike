@@ -18,29 +18,21 @@ int main(int argc, char **argv)
     srand(seed);
 
     RL_Map *map = rl_map_create(WIDTH, HEIGHT);
-    rl_mapgen_bsp(map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 1 });
 
+    // check all tiles reachable with random corridor generation
+    RL_MapgenConfigBSP config = {
+        .room_min_width = 3,
+        .room_max_width = 5,
+        .room_min_height = 3,
+        .room_max_height = 5,
+        .room_padding = 0,
+        .max_bsp_splits = 999,
+        .draw_corridors = true,
+        .connect_corridors_randomly = true,
+        .draw_doors = true,
+    };
+    rl_mapgen_bsp(map, config);
     RL_Graph *floodfill = rl_map_largest_connected_area(map);
-    for (y = 0; y < HEIGHT; ++y) {
-        for (x = 0; x < WIDTH; ++x) {
-            RL_Tile t = map->tiles[map->width*y + x];
-            switch (t) {
-                case RL_TileRock:
-                    printf(" ");
-                    break;
-                case RL_TileRoom:
-                    printf(".");
-                    break;
-                case RL_TileCorridor:
-                    printf("#");
-                    break;
-                case RL_TileDoor:
-                    printf("+");
-                    break;
-            }
-        }
-        printf("\n");
-    }
     for (y = 0; y < HEIGHT; ++y) {
         for (x = 0; x < WIDTH; ++x) {
             if (floodfill->nodes[x + y*WIDTH].score < DBL_MAX) {
@@ -51,7 +43,30 @@ int main(int argc, char **argv)
         }
         printf("\n");
     }
+    // check to ensure map tiles are all reachable
+    for (unsigned int x = 0; x < map->width; ++x) {
+        for (unsigned int y = 0; y < map->height; ++y) {
+            if (!rl_map_tile_is(map, RL_XY(x, y), RL_TileRock) && floodfill->nodes[x + y*map->width].score == DBL_MAX) {
+                assert("ERROR: Unreachable tile found!" == 0);
+            }
+        }
+    }
 
+    // check all tiles reachable with sequential leaf corridor generation
+    rl_graph_destroy(floodfill);
+    config.connect_corridors_randomly = false;
+    rl_mapgen_bsp(map, config);
+    floodfill = rl_map_largest_connected_area(map);
+    for (y = 0; y < HEIGHT; ++y) {
+        for (x = 0; x < WIDTH; ++x) {
+            if (floodfill->nodes[x + y*WIDTH].score < DBL_MAX) {
+                printf("*");
+            } else {
+                printf(" ");
+            }
+        }
+        printf("\n");
+    }
     // check to ensure map tiles are all reachable
     for (unsigned int x = 0; x < map->width; ++x) {
         for (unsigned int y = 0; y < map->height; ++y) {

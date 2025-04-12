@@ -13,8 +13,8 @@ player_movement: player_movement.c ../roguelike.h
 	$(CC) $(CFLAGS) -lcurses -o $@ $<
 simple: simple.c ../roguelike.h
 	$(CC) $(CFLAGS) -lcurses -o $@ $<
-test-cpp: test.cpp
-	gcc -lm -o $@ $<
+test-cpp: test.cpp ../roguelike.h
+	g++ -lm -Wno-narrowing -o $@ $<
 %: %.c ../roguelike.h
 	$(CC) $(CFLAGS) -o $@ $<
 

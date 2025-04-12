@@ -10,7 +10,7 @@ int main(void)
 {
     srand(time(0));
     RL_Map *map = rl_map_create(WIDTH, HEIGHT);
-    rl_mapgen_bsp(map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 1 });
+    rl_mapgen_bsp(map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 1, 1 });
 
     for (int y = 0; y < HEIGHT; ++y) {
         for (int x = 0; x < WIDTH; ++x) {

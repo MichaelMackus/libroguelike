@@ -51,11 +51,16 @@ int main(int argc, char **argv)
         .room_max_width = 5,
         .room_min_height = 3,
         .room_max_height = 5,
-        .max_bsp_splits = 5,
+        .room_padding = 0,
+        .max_bsp_splits = 4,
         .draw_corridors = true,
+        .connect_corridors_randomly = true,
         .draw_doors = true,
     };
+    rl_mapgen_bsp(map, config);
     RL_BSP *bsp = rl_mapgen_bsp_ex(map, config);
+
+    printf("Leaf count: %zu\n", rl_bsp_leaf_count(bsp));
 
     // render the layout of the BSP first for debugging
     render_bsp(bsp);
