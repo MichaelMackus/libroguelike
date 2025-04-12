@@ -965,7 +965,6 @@ RL_BSP *rl_mapgen_bsp_ex(RL_Map *map, RL_MapgenConfigBSP config)
 }
 
 // custom Dijkstra scorer function to prevent carving double wide doors when carving corridors
-// TODO check for pointers
 static inline double rl_mapgen_corridor_scorer(RL_GraphNode *current, RL_GraphNode *neighbor, void *context)
 {
     RL_Map *map = (RL_Map*) context;
@@ -1005,7 +1004,6 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, bool draw
 
         if (connect_randomly) {
             // find random sibling
-            // TODO this isn't working since its not deterministic if all get connected
             rl_assert(leaf_count > 1);
             do {
                 int target = rl_rng_generate(0, leaf_count - 1);
@@ -1024,7 +1022,7 @@ static void rl_mapgen_bsp_connect_corridors(RL_Map *map, RL_BSP *root, bool draw
         rl_assert(sibling);
 
         // floodfill the rooms to find the center
-        // TODO find a random point on a wall that isn't a corner
+        // TODO find a random point on a wall or center of the room?
         RL_Point dig_start, dig_end;
         for (unsigned int x = node->x; x < node->width + node->x; ++x) {
             for (unsigned int y = node->y; y < node->height + node->y; ++y) {
@@ -1111,8 +1109,6 @@ RL_Graph *rl_map_largest_connected_area(const RL_Map *map)
 
     return floodfill;
 }
-
-// TODO method to connect corridors "randomly" (e.g. to make the map more circular)
 
 /**
  * Heap functions for pathfinding
