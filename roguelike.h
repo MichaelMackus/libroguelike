@@ -372,10 +372,7 @@ bool rl_fov_is_seen(const RL_FOV *map, RL_Point point);
  * Random number generation
  */
 
-// Generate random number from min to max (inclusive).
-unsigned long rl_rng_stdlib_generate(unsigned long min, unsigned long max);
-
-// Define rl_rng_generate to override the internal RNG.
+// Define RL_RNG_CUSTOM to provide your own function body for rl_rng_generate.
 unsigned long rl_rng_generate(unsigned long min, unsigned long max);
 #endif
 
@@ -401,10 +398,6 @@ unsigned long rl_rng_generate(unsigned long min, unsigned long max);
 #endif
 
 #define RL_UNUSED(x) (void)x
-
-#ifndef rl_rng_generate
-#define rl_rng_generate rl_rng_stdlib_generate
-#endif
 
 #ifndef rl_assert
 #include <assert.h>
@@ -591,7 +584,8 @@ RL_Byte rl_map_room_wall(const RL_Map *map, RL_Point point)
     return mask ? mask : RL_WallOther;
 }
 
-unsigned long rl_rng_stdlib_generate(unsigned long min, unsigned long max)
+#ifndef RL_RNG_CUSTOM
+unsigned long rl_rng_generate(unsigned long min, unsigned long max)
 {
     rl_assert(max >= min);
     rl_assert(max < RAND_MAX);
@@ -607,6 +601,7 @@ unsigned long rl_rng_stdlib_generate(unsigned long min, unsigned long max)
     // produces more uniformity than using mod
     return min + rnd / (RAND_MAX / (max - min + 1) + 1);
 }
+#endif
 
 RL_BSP *rl_bsp_create(unsigned int width, unsigned int height)
 {
