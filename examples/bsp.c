@@ -47,12 +47,11 @@ int main(int argc, char **argv)
     srand(seed);
     RL_Map *map = rl_map_create(WIDTH, HEIGHT);
     RL_MapgenConfigBSP config = {
-        .room_min_width = 3,
-        .room_max_width = 5,
-        .room_min_height = 3,
-        .room_max_height = 5,
+        .room_min_width = 4,
+        .room_max_width = 8,
+        .room_min_height = 4,
+        .room_max_height = 8,
         .room_padding = 0,
-        .max_bsp_splits = 4,
         .draw_corridors = true,
         .connect_corridors_randomly = true,
         .draw_doors = true,
@@ -63,16 +62,16 @@ int main(int argc, char **argv)
     printf("Leaf count: %zu\n", rl_bsp_leaf_count(bsp));
 
     // render the layout of the BSP first for debugging
-    render_bsp(bsp);
-    for (y = 0; y < HEIGHT; ++y) {
-        for (x = 0; x < WIDTH; ++x) {
-            if (bsp_map[x + y*WIDTH])
-                printf("%c", bsp_map[x + y*WIDTH]);
-            else
-                printf(" ");
-        }
-        printf("\n");
-    }
+    /* render_bsp(bsp); */
+    /* for (y = 0; y < HEIGHT; ++y) { */
+    /*     for (x = 0; x < WIDTH; ++x) { */
+    /*         if (bsp_map[x + y*WIDTH]) */
+    /*             printf("%c", bsp_map[x + y*WIDTH]); */
+    /*         else */
+    /*             printf(" "); */
+    /*     } */
+    /*     printf("\n"); */
+    /* } */
 
     // render the map
     for (y = 0; y < HEIGHT; ++y) {

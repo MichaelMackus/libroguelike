@@ -26,7 +26,6 @@ int main(int argc, char **argv)
         .room_min_height = 3,
         .room_max_height = 5,
         .room_padding = 0,
-        .max_bsp_splits = 999,
         .draw_corridors = true,
         .connect_corridors_randomly = true,
         .draw_doors = true,

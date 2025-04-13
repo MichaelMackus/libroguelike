@@ -96,7 +96,7 @@ int main()
         }
         if (rl_map_tile_is(&map, new_loc, '>') || ch == '>') {
             // generate a new map
-            rl_mapgen_bsp(&map, (RL_MapgenConfigBSP) { 3, 5, 3, 5, 1, 1, 1, 1, 1 });
+            rl_mapgen_bsp(&map, RL_MAPGEN_BSP_DEFAULTS);
             // find passable tile for player
             player_loc.x = player_loc.y = -1;
             for (int y=0; y < HEIGHT; ++y) {

@@ -37,7 +37,6 @@ void generate_map()
         .room_max_width = 5,
         .room_min_height = 3,
         .room_max_height = 5,
-        .max_bsp_splits = 4,
         .draw_corridors = true,
         .connect_corridors_randomly = true,
         .draw_doors = true,

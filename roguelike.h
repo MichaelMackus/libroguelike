@@ -135,17 +135,30 @@ RL_Map *rl_map_create(unsigned int width, unsigned int height);
 // Frees map tile memory.
 void rl_map_destroy(RL_Map *map);
 
+// The config for BSP map generation - note that the dimensions *include* the walls on both sides, so the min room width
+// & height the library accepts is 3.
 typedef struct {
     unsigned int room_min_width;
     unsigned int room_max_width;
     unsigned int room_min_height;
     unsigned int room_max_height;
     unsigned int room_padding;
-    unsigned int max_bsp_splits; // maximum amount of BSP splits
     bool draw_corridors;
     bool connect_corridors_randomly; // for more circular maps
     bool draw_doors;
 } RL_MapgenConfigBSP;
+#ifndef RL_MAPGEN_BSP_DEFAULTS
+#define RL_MAPGEN_BSP_DEFAULTS ((RL_MapgenConfigBSP) { \
+    .room_min_width = 4, \
+    .room_max_width = 6, \
+    .room_min_height = 4, \
+    .room_max_height = 6, \
+    .room_padding = 1, \
+    .draw_corridors = true, \
+    .connect_corridors_randomly = true, \
+    .draw_doors = true, \
+})
+#endif
 
 // Generate map rooms with BSP split & discard the BSP.
 void rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config);
@@ -362,9 +375,8 @@ bool rl_fov_is_seen(const RL_FOV *map, RL_Point point);
 // Generate random number from min to max (inclusive).
 unsigned long rl_rng_stdlib_generate(unsigned long min, unsigned long max);
 
-// Define rl_rng_generate to override the internal RNG
-#ifndef rl_rng_generate
-#define rl_rng_generate rl_rng_stdlib_generate
+// Define rl_rng_generate to override the internal RNG.
+unsigned long rl_rng_generate(unsigned long min, unsigned long max);
 #endif
 
 #ifdef RL_IMPLEMENTATION
@@ -389,6 +401,10 @@ unsigned long rl_rng_stdlib_generate(unsigned long min, unsigned long max);
 #endif
 
 #define RL_UNUSED(x) (void)x
+
+#ifndef rl_rng_generate
+#define rl_rng_generate rl_rng_stdlib_generate
+#endif
 
 #ifndef rl_assert
 #include <assert.h>
@@ -871,6 +887,7 @@ static void rl_map_bsp_generate_rooms(RL_BSP *node, RL_Map *map, unsigned int ro
     rl_assert(room_min_height < room_max_height);
     rl_assert(room_max_width + room_padding*2 < UINT_MAX);
     rl_assert(room_max_height + room_padding*2 < UINT_MAX);
+    rl_assert(room_min_width > 2 && room_min_height > 2); // width of 2 can end up having rooms made of nothing but walls
     rl_assert(node && room_min_width < node->width);
     rl_assert(node && room_min_height < node->height);
     rl_assert(node && room_max_width <= node->width);
@@ -940,7 +957,7 @@ RL_BSP *rl_mapgen_bsp_ex(RL_Map *map, RL_MapgenConfigBSP config)
         return NULL;
     }
 
-    rl_bsp_recursive_split(root, config.room_max_width + config.room_padding, config.room_max_height + config.room_padding, config.max_bsp_splits);
+    rl_bsp_recursive_split(root, config.room_max_width + config.room_padding, config.room_max_height + config.room_padding, RL_MAX_RECURSION);
     rl_map_bsp_generate_rooms(root, map, config.room_min_width, config.room_max_width, config.room_min_height, config.room_max_height, config.room_padding);
 
     if (config.draw_corridors) {
@@ -1709,6 +1726,4 @@ bool rl_fov_is_seen(const RL_FOV *map, RL_Point point)
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif
