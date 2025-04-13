@@ -24,8 +24,8 @@
 #define HEIGHT 30
 
 // static variables should be good enough for this simple example
-static RL_Map map = { .width = WIDTH, .height = HEIGHT, .tiles = (RL_TileSize[WIDTH * HEIGHT]) {0} };
-static RL_FOV fov = { .width = WIDTH, .height = HEIGHT, .visibility = (RL_TileSize[WIDTH * HEIGHT]) {0} };
+static RL_Map map = { .width = WIDTH, .height = HEIGHT, .tiles = (RL_Byte[WIDTH * HEIGHT]) {0} };
+static RL_FOV fov = { .width = WIDTH, .height = HEIGHT, .visibility = (RL_Byte[WIDTH * HEIGHT]) {0} };
 static RL_Point player;
 static RL_Point downstair;
 
@@ -43,7 +43,7 @@ void generate_map()
     });
 
     // reset visibility
-    memset(fov.visibility, RL_TileCannotSee, sizeof(RL_TileSize) * WIDTH * HEIGHT);
+    memset(fov.visibility, RL_TileCannotSee, sizeof(RL_Byte) * WIDTH * HEIGHT);
 
     // generate a random starting tile for player
     while (!rl_map_tile_is(&map, player, RL_TileRoom)) {

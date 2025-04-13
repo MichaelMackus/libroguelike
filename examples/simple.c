@@ -31,7 +31,7 @@ char map_str[WIDTH * HEIGHT] = "------------------------------------------------
                                "|                                                                              |"
                                "--------------------------------------------------------------------------------";
 
-RL_TileSize visibility[WIDTH * HEIGHT];
+RL_Byte visibility[WIDTH * HEIGHT];
 
 int main()
 {
