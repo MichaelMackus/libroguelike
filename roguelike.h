@@ -582,8 +582,14 @@ unsigned long rl_rng_stdlib_generate(unsigned long min, unsigned long max)
 
     if (max < min || max >= RAND_MAX)
         return min;
+    if (min == max)
+        return min;
 
-    return min + rand() / (RAND_MAX / (max - min + 1) + 1);
+    int rnd = rand();
+    if (rnd < 0) rnd = abs(rnd); // fixes issue on LLVM MOS
+
+    // produces more uniformity than using mod
+    return min + rnd / (RAND_MAX / (max - min + 1) + 1);
 }
 
 RL_BSP *rl_bsp_create(unsigned int width, unsigned int height)
