@@ -11,7 +11,8 @@ generation, and [examples/player_movement.c](./examples/player_movement.c) is a
 more detailed example including FOV and basic player movement.
 
 Note that the interface is considered unstable. This is in its very early
-stages, but should be usable as-is. I'm currently using this to develop a
-commodore 64 based roguelike (using LLVM-MOS) and a [simple
-POC](https://github.com/michaelmackus/simplerl). Once I push a tagged release
-the code API should be more stable.
+stages, but should be usable as-is. I'm currently using this to develop
+roguelike-style games. There's a [commodore 64
+POC](https://github.com/MichaelMackus/roguelike-c64-poc) (using LLVM-MOS) and a
+[desktop POC](https://github.com/michaelmackus/simplerl). Once I push a tagged
+release the code API should be more stable.
