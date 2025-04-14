@@ -417,8 +417,9 @@ unsigned int rl_rng_generate(unsigned int min, unsigned int max);
 #define RL_MAX_RECURSION 100
 #endif
 
-#ifndef RL_MAPGEN_BSP_DEVIATION
-#define RL_MAPGEN_BSP_DEVIATION 0
+// define this to 0 to put the rooms in the middle of the BSP leaf during dungeon generation
+#ifndef RL_MAPGEN_BSP_RANDOMISE_ROOM_LOC
+#define RL_MAPGEN_BSP_RANDOMISE_ROOM_LOC 1
 #endif
 
 #define RL_UNUSED(x) (void)x
@@ -716,12 +717,8 @@ bool rl_bsp_recursive_split(RL_BSP *root, unsigned int min_width, unsigned int m
     if (max_recursion <= 0)
         return false;
 
-    rl_assert(RL_MAPGEN_BSP_DEVIATION >= 0.0 && RL_MAPGEN_BSP_DEVIATION <= 1.0);
-
     unsigned int width = root->width;
     unsigned int height = root->height;
-    unsigned int max_width = width - min_width;
-    unsigned int max_height = height - min_height;
 
     // determine split dir & split
     RL_SplitDirection dir;
@@ -742,30 +739,12 @@ bool rl_bsp_recursive_split(RL_BSP *root, unsigned int min_width, unsigned int m
         // cannot split if current node size is too small
         if (width < min_width*2)
             return false;
-
-        unsigned int center = width / 2;
-        unsigned int from = center - (center * RL_MAPGEN_BSP_DEVIATION);
-        unsigned int to = center + (center * RL_MAPGEN_BSP_DEVIATION);
-        if (from < min_width)
-            from = min_width;
-        if (to > max_width)
-            to = max_width;
-
-        split_position = rl_rng_generate(from, to);
+        split_position = width / 2;
     } else {
         // cannot split if current node size is too small
         if (height < min_height*2)
             return false;
-
-        unsigned int center = height / 2;
-        unsigned int from = center - (center * RL_MAPGEN_BSP_DEVIATION);
-        unsigned int to = center + (center * RL_MAPGEN_BSP_DEVIATION);
-        if (from < min_height)
-            from = min_height;
-        if (to > max_height)
-            to = max_height;
-
-        split_position = rl_rng_generate(from, to);
+        split_position = height / 2;
     }
 
     rl_bsp_split(root, split_position, dir);
@@ -924,8 +903,13 @@ static void rl_map_bsp_generate_rooms(RL_BSP *node, RL_Map *map, unsigned int ro
             room_height = rl_rng_generate(room_min_height, room_max_height);
             if (room_height + room_padding*2 > leaf->height)
                 room_height = leaf->height - room_padding*2;
+#if(RL_MAPGEN_BSP_RANDOMISE_ROOM_LOC)
             room_loc.x = rl_rng_generate(leaf->x + room_padding, leaf->x + leaf->width - room_width - room_padding);
             room_loc.y = rl_rng_generate(leaf->y + room_padding, leaf->y + leaf->height - room_height - room_padding);
+#else
+            room_loc.x = leaf->x + leaf->width/2 - room_width/2 - room_padding/2;
+            room_loc.y = leaf->y + leaf->height/2 - room_height/2 - room_padding/2;
+#endif
 
             rl_map_bsp_generate_room(map, room_width, room_height, room_loc);
         } else {
@@ -943,8 +927,13 @@ static void rl_map_bsp_generate_rooms(RL_BSP *node, RL_Map *map, unsigned int ro
             room_height = rl_rng_generate(room_min_height, room_max_height);
             if (room_height + room_padding*2 > leaf->height)
                 room_height = leaf->height - room_padding*2;
+#if(RL_MAPGEN_BSP_RANDOMISE_ROOM_LOC)
             room_loc.x = rl_rng_generate(leaf->x + room_padding, leaf->x + leaf->width - room_width - room_padding);
             room_loc.y = rl_rng_generate(leaf->y + room_padding, leaf->y + leaf->height - room_height - room_padding);
+#else
+            room_loc.x = leaf->x + leaf->width/2 - room_width/2 - room_padding/2;
+            room_loc.y = leaf->y + leaf->height/2 - room_height/2 - room_padding/2;
+#endif
 
             rl_map_bsp_generate_room(map, room_width, room_height, room_loc);
         } else {
