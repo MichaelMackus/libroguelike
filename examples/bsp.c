@@ -52,13 +52,13 @@ int main(int argc, char **argv)
         .room_min_height = 4,
         .room_max_height = 8,
         .room_padding = 0,
-        .draw_corridors = true,
-        .connect_corridors_randomly = true,
+        .draw_corridors = rl_rng_generate(0, 1) ? RL_ConnectBSP : RL_ConnectBSPSimple,
         .draw_doors = true,
     };
     rl_mapgen_bsp(map, config);
     RL_BSP *bsp = rl_mapgen_bsp_ex(map, config);
 
+    printf("Connection algorithm: %s\n", config.draw_corridors == RL_ConnectBSP ? "RL_ConnectBSP" : "RL_ConnectBSPSimple");
     printf("Leaf count: %zu\n", rl_bsp_leaf_count(bsp));
 
     // render the layout of the BSP first for debugging

@@ -26,8 +26,7 @@ int main(int argc, char **argv)
         .room_min_height = 3,
         .room_max_height = 5,
         .room_padding = 0,
-        .draw_corridors = true,
-        .connect_corridors_randomly = true,
+        .draw_corridors = RL_ConnectRandomly,
         .draw_doors = true,
     };
     rl_mapgen_bsp(map, config);
@@ -53,7 +52,7 @@ int main(int argc, char **argv)
 
     // check all tiles reachable with sequential leaf corridor generation
     rl_graph_destroy(floodfill);
-    config.connect_corridors_randomly = false;
+    config.draw_corridors = RL_ConnectBSP;
     rl_mapgen_bsp(map, config);
     floodfill = rl_map_largest_connected_area(map);
     for (y = 0; y < HEIGHT; ++y) {

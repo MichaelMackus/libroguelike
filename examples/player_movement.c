@@ -32,15 +32,7 @@ static RL_Point downstair;
 // generate a new map
 void generate_map()
 {
-    rl_mapgen_bsp(&map, (RL_MapgenConfigBSP) {
-        .room_min_width = 3,
-        .room_max_width = 5,
-        .room_min_height = 3,
-        .room_max_height = 5,
-        .draw_corridors = true,
-        .connect_corridors_randomly = true,
-        .draw_doors = true,
-    });
+    rl_mapgen_bsp(&map, RL_MAPGEN_BSP_DEFAULTS);
 
     // reset visibility
     memset(fov.visibility, RL_TileCannotSee, sizeof(RL_Byte) * WIDTH * HEIGHT);
