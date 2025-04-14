@@ -139,9 +139,8 @@ void rl_map_destroy(RL_Map *map);
 // most interesting & aesthetic maps.
 typedef enum {
     RL_ConnectNone = 0,       // don't connect corridors
-    RL_ConnectRandomly,       // connect corridors to random rooms using Dijkstra algorithm for smarter digging
-    RL_ConnectBSP,            // connect corridors via the BSP graph (faster than above but less circular/interesting maps) using Dijkstra algorithm
-    RL_ConnectBSPSimple,      // connect corridors via the BSP just drawing straight lines (fastest)
+    RL_ConnectRandomly,       // connect corridors to random leaf nodes
+    RL_ConnectBSP,            // connect corridors by traversing the BSP graph (faster than above but less circular/interesting maps)
 } RL_MapgenCorridorConnection;
 
 // The config for BSP map generation - note that the dimensions *include* the walls on both sides, so the min room width
@@ -175,11 +174,11 @@ void rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config);
 // Same as the above function but returns the generated BSP. Make sure to free the BSP with rl_bsp_destroy.
 RL_BSP *rl_mapgen_bsp_ex(RL_Map *map, RL_MapgenConfigBSP config);
 
-// Called by rl_mapgen_bsp when specifying RL_ConnectBSP and RL_ConnectBSPSimple.
+// Called by rl_mapgen_bsp when specifying RL_ConnectBSP.
 //
 // The BSP graph is used to find the "rooms" to connect corridors to. With rl_mapgen_connect_corridors_bsp the algorithm
 // traverses the BSP graph downward, recursively connecting siblings at each level. This ensures that the entire BSP
-// graph is connected via corridors. If you pass NULL for the dijkstra graph it will fallback to drawing straight lines.
+// graph is connected via corridors.
 void rl_mapgen_connect_corridors_bsp(RL_Map *map, RL_BSP *root, bool draw_doors, RL_Graph *graph);
 
 // Called by rl_mapgen_bsp when specifying RL_ConnectRandomly.
@@ -1000,9 +999,6 @@ RL_BSP *rl_mapgen_bsp_ex(RL_Map *map, RL_MapgenConfigBSP config)
                 }
             }
             break;
-        case RL_ConnectBSPSimple:
-            rl_mapgen_connect_corridors_bsp(map, root, config.draw_doors, NULL);
-            break;
         default:
             rl_assert("Invalid corridor connection argument passed to rl_mapgen_bsp" && 0);
             break;
@@ -1038,8 +1034,8 @@ static inline float rl_mapgen_corridor_scorer(RL_GraphNode *current, RL_GraphNod
 
 void rl_mapgen_connect_corridors_bsp(RL_Map *map, RL_BSP *root, bool draw_doors, RL_Graph *graph)
 {
-    rl_assert(map && root);
-    if (!map || !root) return;
+    rl_assert(map && root && graph);
+    if (map == NULL || root == NULL || graph == NULL) return;
 
     // connect siblings
     RL_BSP *node = root->left;
