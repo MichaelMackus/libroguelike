@@ -33,7 +33,7 @@ int main(int argc, char **argv)
     RL_Graph *floodfill = rl_map_largest_connected_area(map);
     for (y = 0; y < HEIGHT; ++y) {
         for (x = 0; x < WIDTH; ++x) {
-            if (floodfill->nodes[x + y*WIDTH].score < DBL_MAX) {
+            if (floodfill->nodes[x + y*WIDTH].score < FLT_MAX) {
                 printf("*");
             } else {
                 printf(" ");
@@ -44,7 +44,7 @@ int main(int argc, char **argv)
     // check to ensure map tiles are all reachable
     for (unsigned int x = 0; x < map->width; ++x) {
         for (unsigned int y = 0; y < map->height; ++y) {
-            if (!rl_map_tile_is(map, RL_XY(x, y), RL_TileRock) && floodfill->nodes[x + y*map->width].score == DBL_MAX) {
+            if (!rl_map_tile_is(map, RL_XY(x, y), RL_TileRock) && floodfill->nodes[x + y*map->width].score == FLT_MAX) {
                 assert("ERROR: Unreachable tile found!" == 0);
             }
         }
@@ -57,7 +57,7 @@ int main(int argc, char **argv)
     floodfill = rl_map_largest_connected_area(map);
     for (y = 0; y < HEIGHT; ++y) {
         for (x = 0; x < WIDTH; ++x) {
-            if (floodfill->nodes[x + y*WIDTH].score < DBL_MAX) {
+            if (floodfill->nodes[x + y*WIDTH].score < FLT_MAX) {
                 printf("*");
             } else {
                 printf(" ");
@@ -68,7 +68,7 @@ int main(int argc, char **argv)
     // check to ensure map tiles are all reachable
     for (unsigned int x = 0; x < map->width; ++x) {
         for (unsigned int y = 0; y < map->height; ++y) {
-            if (!rl_map_tile_is(map, RL_XY(x, y), RL_TileRock) && floodfill->nodes[x + y*map->width].score == DBL_MAX) {
+            if (!rl_map_tile_is(map, RL_XY(x, y), RL_TileRock) && floodfill->nodes[x + y*map->width].score == FLT_MAX) {
                 assert("ERROR: Unreachable tile found!" == 0);
             }
         }

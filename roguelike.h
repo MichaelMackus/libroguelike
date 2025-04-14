@@ -77,11 +77,11 @@ typedef struct {
 // A point on the map. The points are a float type for flexibility, but for most roguelikes they will probably be casted
 // from an integer type.
 typedef struct RL_Point {
-    double x, y;
+    float x, y;
 } RL_Point;
 
 // Macro to easily create a RL_Point.
-#define RL_XY(x, y) (RL_Point) { (double)(x), (double)(y) }
+#define RL_XY(x, y) (RL_Point) { (float)(x), (float)(y) }
 
 // BSP tree
 typedef struct RL_BSP {
@@ -107,7 +107,7 @@ typedef enum {
 
 // Represents a graph of pathfinding nodes that has been scored for pathfinding (e.g. with the Dijkstra algorithm).
 typedef struct RL_GraphNode {
-    double score; // will be DBL_MAX for an unreachable/unscored node in the Dijkstra algorithm
+    float score; // will be FLT_MAX for an unreachable/unscored node in the Dijkstra algorithm
     RL_Point point;
     size_t neighbors_length;
     struct RL_GraphNode *neighbors[RL_MAX_NEIGHBOR_COUNT];
@@ -298,22 +298,22 @@ RL_BSP *rl_bsp_next_leaf(RL_BSP *node);
  */
 
 // Useful distance functions for pathfinding.
-double rl_distance_manhattan(RL_Point node, RL_Point end);
-double rl_distance_euclidian(RL_Point node, RL_Point end);
-double rl_distance_chebyshev(RL_Point node, RL_Point end);
+float rl_distance_manhattan(RL_Point node, RL_Point end);
+float rl_distance_euclidian(RL_Point node, RL_Point end);
+float rl_distance_chebyshev(RL_Point node, RL_Point end);
 
 // Custom distance function for pathfinding - calculates distance between map nodes
-typedef double (*RL_DistanceFun)(RL_Point from, RL_Point to);
+typedef float (*RL_DistanceFun)(RL_Point from, RL_Point to);
 
 // Custom passable function for pathfinding. Return 0 to prevent neighbor from being included in graph.
 typedef bool (*RL_PassableFun)(const RL_Map *map, RL_Point point);
 
 // Custom score function for pathfinding - most users won't need this, but it gives flexibility in weighting the
 // Dijkstra graph. Note that Dijkstra expects you to add the current node's score to the newly calculated score.
-typedef double (*RL_ScoreFun)(RL_GraphNode *current, RL_GraphNode *neighbor, void *context);
+typedef float (*RL_ScoreFun)(RL_GraphNode *current, RL_GraphNode *neighbor, void *context);
 
 // Generates a line starting at from ending at to. Each path in the line will be incremented by step.
-RL_Path *rl_line_create(RL_Point from, RL_Point to, double step);
+RL_Path *rl_line_create(RL_Point from, RL_Point to, float step);
 
 // Find a path between start and end via Dijkstra algorithm. Make sure to call rl_path_destroy when done with path.
 // Pass NULL to distance_f to use rough approximation for euclidian.
@@ -345,11 +345,11 @@ RL_Graph *rl_dijkstra_create(const RL_Map *map,
                             RL_PassableFun passable_f);
 
 // Dijkstra pathfinding algorithm. Uses RL_Graph so that your code doesn't need to rely on RL_Map. Each node's
-// distance should equal DBL_MAX in the resulting graph if it is impassable.
+// distance should equal FLT_MAX in the resulting graph if it is impassable.
 void rl_dijkstra_score(RL_Graph *graph, RL_Point start, RL_DistanceFun distance_f);
 
 // Dijkstra pathfinding algorithm for advanced use cases such as weighting certain tiles higher than others. Uses
-// RL_Graph so that your code doesn't need to rely on RL_Map. Each node's distance should equal DBL_MAX in the resulting
+// RL_Graph so that your code doesn't need to rely on RL_Map. Each node's distance should equal FLT_MAX in the resulting
 // graph if it is impassable. Most users should just use rl_dijkstra_score - only use this if you have a specific need.
 void rl_dijkstra_score_ex(RL_Graph *graph, RL_Point start, RL_ScoreFun score_f, void *score_context);
 
@@ -397,7 +397,7 @@ bool rl_fov_is_seen(const RL_FOV *map, RL_Point point);
  */
 
 // Define RL_RNG_CUSTOM to provide your own function body for rl_rng_generate.
-unsigned long rl_rng_generate(unsigned long min, unsigned long max);
+unsigned int rl_rng_generate(unsigned int min, unsigned int max);
 #endif
 
 #ifdef RL_IMPLEMENTATION
@@ -519,7 +519,7 @@ bool rl_map_is_wall(const RL_Map *map, RL_Point point)
 }
 
 // checks if target tile is connecting from source (e.g. they can reach it)
-static double rl_distance_simple(RL_Point node, RL_Point end);
+static float rl_distance_simple(RL_Point node, RL_Point end);
 bool rl_map_is_connecting(const RL_Map *map, RL_Point from, RL_Point target)
 {
     // check that from passable neighbors can connect to target
@@ -609,12 +609,13 @@ RL_Byte rl_map_room_wall(const RL_Map *map, RL_Point point)
 }
 
 #ifndef RL_RNG_CUSTOM
-unsigned long rl_rng_generate(unsigned long min, unsigned long max)
+unsigned int rl_rng_generate(unsigned int min, unsigned int max)
 {
     rl_assert(max >= min);
     rl_assert(max < RAND_MAX);
+    rl_assert(max < UINT_MAX);
 
-    if (max < min || max >= RAND_MAX)
+    if (max < min || max >= RAND_MAX || max >= UINT_MAX)
         return min;
     if (min == max)
         return min;
@@ -990,7 +991,7 @@ RL_BSP *rl_mapgen_bsp_ex(RL_Map *map, RL_MapgenConfigBSP config)
                 if (floodfill) {
                     for (size_t x=0; x < map->width; ++x) {
                         for (size_t y=0; y < map->height; ++y) {
-                            if (floodfill->nodes[x + y*map->width].score == DBL_MAX) {
+                            if (floodfill->nodes[x + y*map->width].score == FLT_MAX) {
                                 // set unreachable tiles to rock
                                 map->tiles[x + y*map->width] = RL_TileRock;
                             }
@@ -1026,12 +1027,12 @@ RL_BSP *rl_mapgen_bsp_ex(RL_Map *map, RL_MapgenConfigBSP config)
 }
 
 // custom Dijkstra scorer function to prevent carving double wide doors when carving corridors
-static inline double rl_mapgen_corridor_scorer(RL_GraphNode *current, RL_GraphNode *neighbor, void *context)
+static inline float rl_mapgen_corridor_scorer(RL_GraphNode *current, RL_GraphNode *neighbor, void *context)
 {
     RL_Map *map = (RL_Map*) context;
     RL_Point start = current->point;
     RL_Point end = neighbor->point;
-    double r = current->score + rl_distance_manhattan(start, end);
+    float r = current->score + rl_distance_manhattan(start, end);
 
     if (rl_map_tile_is(map, end, RL_TileDoor)) {
         return r; // doors are passable but count as "walls" - encourage passing through them
@@ -1227,7 +1228,7 @@ RL_Graph *rl_map_largest_connected_area(const RL_Map *map)
                 }
                 int test_scored = 0;
                 for (size_t i = 0; i < test->length; i++) {
-                    if (test->nodes[i].score != DBL_MAX) {
+                    if (test->nodes[i].score != FLT_MAX) {
                         visited[i] = 1;
                         test_scored ++;
                     }
@@ -1387,7 +1388,7 @@ void *rl_heap_peek(RL_Heap *h)
 }
 
 // simplified distance for side by side nodes
-static double rl_distance_simple(RL_Point node, RL_Point end)
+static float rl_distance_simple(RL_Point node, RL_Point end)
 {
     if (node.x == end.x && node.y == end.y) return 0;
     if (node.x == end.x || node.y == end.y) return 1;
@@ -1413,35 +1414,35 @@ RL_Path *rl_path(RL_Point p)
     return path;
 }
 
-double rl_distance_manhattan(RL_Point node, RL_Point end)
+float rl_distance_manhattan(RL_Point node, RL_Point end)
 {
     return fabs(node.x - end.x) + fabs(node.y - end.y);
 }
 
-double rl_distance_euclidian(RL_Point node, RL_Point end)
+float rl_distance_euclidian(RL_Point node, RL_Point end)
 {
-    double distance_x = node.x - end.x;
-    double distance_y = node.y - end.y;
+    float distance_x = node.x - end.x;
+    float distance_y = node.y - end.y;
 
     return sqrt(distance_x * distance_x + distance_y * distance_y);
 }
 
-double rl_distance_chebyshev(RL_Point node, RL_Point end)
+float rl_distance_chebyshev(RL_Point node, RL_Point end)
 {
-    double distance_x = fabs(node.x - end.x);
-    double distance_y = fabs(node.y - end.y);
+    float distance_x = fabs(node.x - end.x);
+    float distance_y = fabs(node.y - end.y);
 
     return distance_x > distance_y ? distance_x : distance_y;
 }
 
-RL_Path *rl_line_create(RL_Point a, RL_Point b, double step)
+RL_Path *rl_line_create(RL_Point a, RL_Point b, float step)
 {
-    double delta_x = fabs(a.x - b.x);
-    double x_increment = b.x > a.x ? step : -step;
-    double delta_y = fabs(a.y - b.y);
-    double y_increment = b.y > a.y ? step : -step;
-    double error = 0.0;
-    double slope = delta_x ? delta_y / delta_x : 0.0;
+    float delta_x = fabs(a.x - b.x);
+    float x_increment = b.x > a.x ? step : -step;
+    float delta_y = fabs(a.y - b.y);
+    float y_increment = b.y > a.y ? step : -step;
+    float error = 0.0;
+    float slope = delta_x ? delta_y / delta_x : 0.0;
 
     RL_Path *head = rl_path(a);
     RL_Path *path = head;
@@ -1510,7 +1511,7 @@ RL_Path *rl_path_create_from_graph(const RL_Graph *graph, RL_Point start)
                 lowest_neighbor = neighbor;
             }
         }
-        if (!lowest_neighbor || lowest_neighbor->score == DBL_MAX || node == lowest_neighbor) {
+        if (!lowest_neighbor || lowest_neighbor->score == FLT_MAX || node == lowest_neighbor) {
             break; // no path found
         }
         node = lowest_neighbor;
@@ -1559,10 +1560,10 @@ RL_Graph *rl_graph_create(const RL_Map *map, RL_PassableFun passable_f, bool all
         for (unsigned int y=0; y<map->height; y++) {
             size_t idx = x + y*map->width;
             RL_GraphNode *node = &nodes[idx];
-            node->point.x = (double) x;
-            node->point.y = (double) y;
+            node->point.x = (float) x;
+            node->point.y = (float) y;
             node->neighbors_length = 0;
-            node->score = DBL_MAX;
+            node->score = FLT_MAX;
             // calculate neighbors
             RL_Point neighbor_coords[8] = {
                 (RL_Point) { x + 1, y },
@@ -1609,7 +1610,7 @@ RL_Graph *rl_dijkstra_create(const RL_Map *map,
 // default scorer function for Dijkstra - this simply accepts a RL_DistanceFun as context and adds the current nodes
 // score to the result of the distance function
 struct rl_score_context { RL_DistanceFun fun; };
-double rl_dijkstra_default_score_f(RL_GraphNode *current, RL_GraphNode *neighbor, void *context)
+float rl_dijkstra_default_score_f(RL_GraphNode *current, RL_GraphNode *neighbor, void *context)
 {
     struct rl_score_context *distance_f = (struct rl_score_context*) context;
 
@@ -1639,7 +1640,7 @@ void rl_dijkstra_score_ex(RL_Graph *graph, RL_Point start, RL_ScoreFun score_f, 
             node->score = 0;
             current = node;
         } else {
-            node->score = DBL_MAX;
+            node->score = FLT_MAX;
         }
     }
 
@@ -1648,9 +1649,9 @@ void rl_dijkstra_score_ex(RL_Graph *graph, RL_Point start, RL_ScoreFun score_f, 
     while (current) {
         for (size_t i=0; i<current->neighbors_length; i++) {
             RL_GraphNode *neighbor = current->neighbors[i];
-            double distance = score_f(current, neighbor, score_context);
+            float distance = score_f(current, neighbor, score_context);
             if (distance < neighbor->score) {
-                if (neighbor->score == DBL_MAX) {
+                if (neighbor->score == FLT_MAX) {
                     rl_heap_insert(heap, neighbor);
                 }
                 neighbor->score = distance;
@@ -1735,7 +1736,7 @@ void rl_fov_calculate_recursive(void *map, RL_Point origin, int fov_radius, RL_D
                 case 7: tx += x; ty += y; break;
             }
 
-            bool inRange = fov_radius < 0 || distance_f(origin, RL_XY(tx, ty)) <= (double)fov_radius;
+            bool inRange = fov_radius < 0 || distance_f(origin, RL_XY(tx, ty)) <= (float)fov_radius;
             if(inRange) {
                 if (RL_FOV_SYMMETRIC && (y != topY || top.Y*(int)x >= top.X*y) && (y != bottomY || bottom.Y*(int)x <= bottom.X*y)) {
                     mark_visible_f(RL_XY(tx, ty), map);

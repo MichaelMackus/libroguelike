@@ -36,7 +36,7 @@ int main()
                 sym = 48 + n->score;
             } else if (n->score < 36) {
                 sym = 65 + (n->score - 10);
-            } else if (n->score == DBL_MAX) {
+            } else if (n->score == FLT_MAX) {
                 sym = '#';
             }
             printf("%c", sym);
