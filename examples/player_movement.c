@@ -66,11 +66,6 @@ int main(int argc, char **argv)
     keypad(stdscr, 1);
     mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
     mouseinterval(0);
-    start_color();
-    use_default_colors();
-    init_pair(1, COLOR_WHITE, -1);
-    init_pair(2, -1, -1); // Pair 2: Green text on black background
-    attron(COLOR_PAIR(1));
 
     generate_map();
 
@@ -118,12 +113,10 @@ int main(int argc, char **argv)
                     }
                     if (!rl_fov_is_visible(&fov, RL_XY(x, y))) {
                         // if not visible but previously seen, we draw in a muted grey
-                        attroff(COLOR_PAIR(1));
-                        attron(COLOR_PAIR(2));
+                        attroff(A_BOLD);
                         mvaddch(y, x, ch);
-                        attroff(COLOR_PAIR(2));
-                        attron(COLOR_PAIR(1));
                     } else {
+                        attron(A_BOLD);
                         mvaddch(y, x, ch);
                     }
                 } else {
