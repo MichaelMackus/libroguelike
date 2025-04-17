@@ -55,8 +55,8 @@ int main(int argc, char **argv)
         .draw_corridors = RL_ConnectBSP,
         .draw_doors = true,
     };
-    rl_mapgen_bsp(map, config);
-    RL_BSP *bsp = rl_mapgen_bsp_ex(map, config);
+    RL_BSP *bsp = rl_mapgen_bsp_ex(map, &config);
+
 
     printf("Leaf count: %zu\n", rl_bsp_leaf_count(bsp));
 
@@ -79,7 +79,7 @@ int main(int argc, char **argv)
             switch (t) {
                 case RL_TileRock:
                     ;
-                    int wall = rl_map_room_wall(map, RL_XY(x, y));
+                    int wall = rl_map_room_wall(map, x, y);
                     if (wall & RL_WallToEast || wall & RL_WallToWest)
                         printf("-");
                     else if (wall & RL_WallToSouth || wall & RL_WallToNorth)

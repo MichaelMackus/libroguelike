@@ -18,7 +18,7 @@ int main()
             switch (t) {
                 case RL_TileRock:
                     {
-                        int wall = rl_map_room_wall(map, RL_XY(x, y));
+                        int wall = rl_map_room_wall(map, x, y);
                         if (wall & RL_WallToEast || wall & RL_WallToWest)
                             printf("-");
                         else if (wall & RL_WallToSouth || wall & RL_WallToNorth)

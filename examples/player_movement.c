@@ -38,13 +38,13 @@ void generate_map()
     memset(fov.visibility, RL_TileCannotSee, sizeof(RL_Byte) * WIDTH * HEIGHT);
 
     // generate a random starting tile for player
-    while (!rl_map_tile_is(&map, player, RL_TileRoom)) {
+    while (!rl_map_tile_is(&map, player.x, player.y, RL_TileRoom)) {
         player.x = rl_rng_generate(0, WIDTH - 1);
         player.y = rl_rng_generate(0, HEIGHT - 1);
     }
 
     // generate a random downstair tile
-    while (!rl_map_tile_is(&map, downstair, RL_TileRoom) || (downstair.x == player.x && downstair.y == player.y)) {
+    while (!rl_map_tile_is(&map, downstair.x, downstair.y, RL_TileRoom) || (downstair.x == player.x && downstair.y == player.y)) {
         downstair.x = rl_rng_generate(0, WIDTH - 1);
         downstair.y = rl_rng_generate(0, HEIGHT - 1);
     }
@@ -74,18 +74,18 @@ int main(int argc, char **argv)
     RL_Path *player_path = NULL; // path for mouse movement
     while (!quit) {
         // regenerate FOV
-        rl_fov_calculate(&fov, &map, player, -1, rl_distance_euclidian);
+        rl_fov_calculate(&fov, &map, player.x, player.y, -1, rl_distance_euclidian);
 
         // draw the map, only drawing previously seen tiles or tiles within the FOV
         for (y = 0; y < map.height; ++y) {
             for (x = 0; x < map.width; ++x) {
-                if (rl_fov_is_visible(&fov, RL_XY(x, y)) || rl_fov_is_seen(&fov, RL_XY(x, y))) {
+                if (rl_fov_is_visible(&fov, x, y) || rl_fov_is_seen(&fov, x, y)) {
                     RL_Tile t = map.tiles[map.width*y + x];
                     char ch = ' ';
                     switch (t) {
                         case RL_TileRock:
                             ;
-                            int wall = rl_map_room_wall(&map, RL_XY(x, y));
+                            int wall = rl_map_room_wall(&map, x, y);
                             if (wall & RL_WallToEast || wall & RL_WallToWest)
                                 ch = '-';
                             else if (wall & RL_WallToSouth || wall & RL_WallToNorth)
@@ -111,7 +111,7 @@ int main(int argc, char **argv)
                     } else if (x == downstair.x && y == downstair.y) {
                         ch = '>';
                     }
-                    if (!rl_fov_is_visible(&fov, RL_XY(x, y))) {
+                    if (!rl_fov_is_visible(&fov, x, y)) {
                         // if not visible but previously seen, we draw in a muted grey
                         attroff(A_BOLD);
                         mvaddch(y, x, ch);
@@ -166,7 +166,7 @@ int main(int argc, char **argv)
                         {
                             // if we have a mouse event & the destination is seen & passable, create a path to the destination
                             RL_Point dest = RL_XY(ev.x, ev.y);
-                            if ((rl_fov_is_seen(&fov, dest) || rl_fov_is_visible(&fov, dest)) && rl_map_is_passable(&map, dest)) {
+                            if ((rl_fov_is_seen(&fov, dest.x, dest.y) || rl_fov_is_visible(&fov, dest.x, dest.y)) && rl_map_is_passable(&map, dest.x, dest.y)) {
                                 player_path = rl_path_create(&map, player, dest, rl_distance_chebyshev, rl_map_is_passable);
                                 player_path = rl_path_walk(player_path); // skip first point
                             }
@@ -181,7 +181,7 @@ int main(int argc, char **argv)
             Sleep(50); // so we can see the movement
         }
         // update the player position if the target is passable
-        if (rl_map_is_passable(&map, new_player)) {
+        if (rl_map_is_passable(&map, new_player.x, new_player.y)) {
             player = new_player;
         }
     }
