@@ -28,8 +28,12 @@ int main(int argc, char **argv)
         .room_padding = 0,
         .draw_corridors = RL_ConnectRandomly,
         .draw_doors = true,
+        .max_splits = RL_MAX_RECURSION,
     };
-    rl_mapgen_bsp(map, config);
+    if (rl_mapgen_bsp(map, config) != RL_OK) {
+        fprintf(stderr, "Error while generating map!\n");
+        return 1;
+    }
     RL_Graph *floodfill = rl_graph_floodfill_largest_area(map);
     for (y = 0; y < HEIGHT; ++y) {
         for (x = 0; x < WIDTH; ++x) {

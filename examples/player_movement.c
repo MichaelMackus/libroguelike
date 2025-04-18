@@ -32,7 +32,10 @@ static RL_Point downstair;
 // generate a new map
 void generate_map()
 {
-    rl_mapgen_bsp(&map, RL_MAPGEN_BSP_DEFAULTS);
+    if (rl_mapgen_bsp(&map, RL_MAPGEN_BSP_DEFAULTS) != RL_OK) {
+        fprintf(stderr, "Error while generating map!\n");
+        exit(1);
+    }
 
     // reset visibility
     memset(fov.visibility, RL_TileCannotSee, sizeof(RL_Byte) * WIDTH * HEIGHT);
@@ -74,7 +77,7 @@ int main(int argc, char **argv)
     RL_Path *player_path = NULL; // path for mouse movement
     while (!quit) {
         // regenerate FOV
-        rl_fov_calculate(&fov, &map, player.x, player.y, -1, rl_distance_euclidian);
+        rl_fov_calculate(&fov, &map, player.x, player.y, 4);
 
         // draw the map, only drawing previously seen tiles or tiles within the FOV
         for (y = 0; y < map.height; ++y) {

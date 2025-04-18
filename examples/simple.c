@@ -49,7 +49,7 @@ int main()
     bool quit = 0;
     while (!quit) {
         // calculate FOV
-        rl_fov_calculate(&fov, &map, player_x, player_y, FOV_RADIUS, rl_distance_manhattan);
+        rl_fov_calculate(&fov, &map, player_x, player_y, FOV_RADIUS);
         // draw map
         move(0, 0);
         for (unsigned int y=0; y < HEIGHT; ++y) {
@@ -57,12 +57,7 @@ int main()
                 if (player_x == x && player_y == y) {
                     addch('@');
                 } else if (rl_fov_is_visible(&fov, x, y)) {
-                    /* if (rl_map_tile_is(&map, RL_XY(x, y), RL_TileRock)) */
-                    /*     addch('#'); */
-                    /* else if (rl_map_tile_is(&map, RL_XY(x, y), RL_TileCorridor)) */
-                    /*     addch('.'); */
-                    /* else */
-                        addch(map.tiles[y*WIDTH + x]);
+                    addch(map.tiles[y*WIDTH + x]);
                 } else {
                     addch(' ');
                 }
@@ -96,7 +91,12 @@ int main()
         }
         if (rl_map_tile_is(&map, new_x, new_y, '>') || ch == '>') {
             // generate a new map
-            rl_mapgen_bsp(&map, RL_MAPGEN_BSP_DEFAULTS);
+            RL_MapgenConfigBSP config = RL_MAPGEN_BSP_DEFAULTS;
+            config.draw_corridors = RL_ConnectSimple;
+            if (rl_mapgen_bsp(&map, config) != RL_OK) {
+                fprintf(stderr, "Error while generating map!\n");
+                return 1;
+            }
             // find passable tile for player
             player_x = player_y = -1;
             for (int y=0; y < HEIGHT; ++y) {
