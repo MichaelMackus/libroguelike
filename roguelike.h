@@ -120,6 +120,10 @@ typedef struct {
     int max_splits; /* max times to split BSP - set lower for less rooms */
 } RL_MapgenConfigBSP;
 
+#ifndef RL_MAX_RECURSION
+#define RL_MAX_RECURSION 100
+#endif
+
 /* Provide some defaults for mapgen. */
 #define RL_MAPGEN_BSP_DEFAULTS RL_CLITERAL(RL_MapgenConfigBSP) { \
     /*.room_min_width =*/      4, \
@@ -448,10 +452,6 @@ unsigned int rl_rng_generate(unsigned int min, unsigned int max);
 
 #ifndef RL_FOV_SYMMETRIC
 #define RL_FOV_SYMMETRIC 1
-#endif
-
-#ifndef RL_MAX_RECURSION
-#define RL_MAX_RECURSION 100
 #endif
 
 /* define this to 0 to put the rooms in the middle of the BSP leaf during dungeon generation */
