@@ -1028,6 +1028,7 @@ RL_Status rl_mapgen_bsp_ex(RL_Map *map, RL_BSP *root, const RL_MapgenConfigBSP *
     rl_assert(root);
     rl_assert(config->room_min_width > 0 && config->room_max_width >= config->room_min_width && config->room_min_height > 0 && config->room_max_height >= config->room_min_height);
     rl_assert(config->room_max_width <= map->width && config->room_max_height <= map->height);
+    rl_assert(config->max_splits > 0);
 
     if (map == NULL || root == NULL) {
         return RL_ErrorNullParameter;
