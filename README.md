@@ -31,6 +31,7 @@ int main()
         }
         printf("\n");
     }
+    rl_map_destroy(map);
 
     return 0;
 }
