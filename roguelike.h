@@ -1,13 +1,3 @@
-#ifndef RL_ROGUELIKE_H
-#define RL_ROGUELIKE_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include <stdbool.h>
-#include <stddef.h>
-
 /**
  * MIT License
  *
@@ -31,6 +21,16 @@ extern "C" {
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+
+#ifndef RL_ROGUELIKE_H
+#define RL_ROGUELIKE_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdbool.h>
+#include <stddef.h>
 
 /* This is a helper since MSVC & c89 don't support compound literals */
 #ifndef RL_CLITERAL
