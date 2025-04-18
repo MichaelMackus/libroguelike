@@ -1,9 +1,10 @@
 # libroguelike
 
-Simple single-header game library in ANSI C with zero dependencies. Most
-useful for roguelike devs, but has functionality that should be useful to most
-2d tile-based games. Everything but the pathfinding works with C89 -
-pathfinding currently requires C99.
+Simple single-header game library in ANSI C with zero dependencies. Pathfinding
+does require linking with math (`-lm` with gcc). Most useful for roguelike
+devs, but has functionality that should be useful to most 2d tile-based games.
+Everything but the pathfinding works with C89 - pathfinding currently requires
+C99.
 
 ## Quickstart
 
