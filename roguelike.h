@@ -22,12 +22,12 @@
  * SOFTWARE.
  */
 
-#ifndef RL_ROGUELIKE_H
-#define RL_ROGUELIKE_H
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#ifndef RL_ROGUELIKE_H
+#define RL_ROGUELIKE_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -120,10 +120,6 @@ typedef struct {
     int max_splits; /* max times to split BSP - set lower for less rooms */
 } RL_MapgenConfigBSP;
 
-#ifndef RL_MAX_RECURSION
-#define RL_MAX_RECURSION 100
-#endif
-
 /* Provide some defaults for mapgen. */
 #define RL_MAPGEN_BSP_DEFAULTS RL_CLITERAL(RL_MapgenConfigBSP) { \
     /*.room_min_width =*/      4, \
@@ -133,7 +129,7 @@ typedef struct {
     /*.room_padding =*/        1, \
     /*.draw_corridors =*/      RL_ConnectRandomly, \
     /*.draw_doors =*/          true, \
-    /*.max_splits =*/          RL_MAX_RECURSION \
+    /*.max_splits =*/          100 \
 }
 
 typedef enum {
@@ -272,14 +268,6 @@ RL_BSP* rl_bsp_random_leaf(RL_BSP *root);
  * Pathfinding - disable with #define RL_ENABLE_PATHFINDING 0
  */
 
-#ifndef RL_ENABLE_PATHFINDING
-#define RL_ENABLE_PATHFINDING 1
-#endif
-
-#if RL_ENABLE_PATHFINDING
-#include <float.h>
-#include <math.h>
-
 /* A point on the map used for pathfinding. The points are a float type for flexibility since pathfinding works for maps */
 /* of all data types. */
 typedef struct RL_Point {
@@ -379,17 +367,11 @@ RL_Graph *rl_graph_create(const RL_Map *map, RL_PassableFun passable_f, bool all
 
 /* Frees the graph & internal memory. */
 void rl_graph_destroy(RL_Graph *graph);
-#endif /* RL_ENABLE_PATHFINDING */
 
 /**
  * FOV - disable with #define RL_ENABLE_FOV 0
  */
 
-#ifndef RL_ENABLE_FOV
-#define RL_ENABLE_FOV 1
-#endif
-
-#if RL_ENABLE_FOV
 /* Structure containing information for the FOV algorithm, along with the associated visibility enum. */
 typedef enum {
     RL_TileCannotSee = 0,
@@ -440,7 +422,6 @@ bool rl_fov_is_seen(const RL_FOV *map, unsigned int x, unsigned int y);
 
 /* Define RL_RNG_CUSTOM to provide your own function body for rl_rng_generate. */
 unsigned int rl_rng_generate(unsigned int min, unsigned int max);
-#endif /* RL_ROGUELIKE_H */
 
 #ifdef RL_IMPLEMENTATION
 
@@ -454,9 +435,28 @@ unsigned int rl_rng_generate(unsigned int min, unsigned int max);
 #define RL_FOV_SYMMETRIC 1
 #endif
 
+#ifndef RL_MAX_RECURSION
+#define RL_MAX_RECURSION 100
+#endif
+
 /* define this to 0 to put the rooms in the middle of the BSP leaf during dungeon generation */
 #ifndef RL_MAPGEN_BSP_RANDOMISE_ROOM_LOC
 #define RL_MAPGEN_BSP_RANDOMISE_ROOM_LOC 1
+#endif
+
+/* define to 0 to disable pathfinding */
+#ifndef RL_ENABLE_PATHFINDING
+#define RL_ENABLE_PATHFINDING 1
+#endif
+
+/* define to 0 to disable FOV */
+#ifndef RL_ENABLE_FOV
+#define RL_ENABLE_FOV 1
+#endif
+
+#if RL_ENABLE_PATHFINDING
+#include <float.h>
+#include <math.h>
 #endif
 
 #define RL_UNUSED(x) (void)x
@@ -1211,7 +1211,197 @@ RL_Status rl_mapgen_connect_corridors(RL_Map *map, RL_BSP *root, bool draw_doors
     return RL_OK;
 }
 
+/**
+ * Heap functions for pathfinding
+ *
+ * Ref: https://gist.github.com/skeeto/f012a207aff1753662b679917f706de6
+ */
+
+static int rl_heap_noop_comparison_f(const void *_a, const void *_b)
+{
+    RL_UNUSED(_a);
+    RL_UNUSED(_b);
+    return 1;
+}
+
+RL_Heap *rl_heap_create(int capacity, int (*comparison_f)(const void *heap_item_a, const void *heap_item_b))
+{
+    RL_Heap *heap;
+    heap = (RL_Heap*) rl_malloc(sizeof(*heap));
+    rl_assert(heap);
+    if (heap == NULL) {
+        return NULL;
+    }
+    heap->heap = (void**) rl_malloc(sizeof(*heap->heap) * capacity);
+    rl_assert(heap->heap);
+    if (heap->heap == NULL) {
+        rl_free(heap);
+        return NULL;
+    }
+
+    if (comparison_f == NULL) {
+        comparison_f = rl_heap_noop_comparison_f;
+    }
+
+    heap->cap = capacity;
+    heap->comparison_f = comparison_f;
+    heap->len = 0;
+
+    return heap;
+}
+
+void rl_heap_destroy(RL_Heap *h)
+{
+    if (h) {
+        if (h->heap) {
+            rl_free(h->heap);
+        }
+        rl_free(h);
+    }
+}
+
+int rl_heap_length(RL_Heap *h)
+{
+    if (h == NULL) return 0;
+    return h->len;
+}
+
+bool rl_heap_insert(RL_Heap *h, void *item)
+{
+    int i;
+    rl_assert(h != NULL);
+    if (h == NULL) return false;
+
+    if (h->len == h->cap) {
+        /* resize the heap */
+        void **heap_items = (void**) rl_realloc(h->heap, sizeof(void*) * h->cap * 2);
+        rl_assert(heap_items);
+        if (heap_items == NULL) {
+            rl_heap_destroy(h);
+            return false;
+        }
+        h->heap = heap_items;
+        h->cap *= 2;
+    }
+
+    h->heap[h->len] = item;
+    for (i = h->len++; i;) {
+        void *tmp;
+        int p = (i - 1) / 2;
+        if (h->comparison_f(h->heap[p], h->heap[i])) {
+            break;
+        }
+        tmp = h->heap[p];
+        h->heap[p] = h->heap[i];
+        h->heap[i] = tmp;
+        i = p;
+    }
+    return true;
+}
+
+static void rl_heap_remove(RL_Heap *h, int index)
+{
+    int i;
+    rl_assert(h);
+    if (h == NULL) {
+        return;
+    }
+
+    h->heap[index] = h->heap[--h->len];
+    for (i = index;;) {
+        int a = 2*i + 1;
+        int b = 2*i + 2;
+        int j = i;
+        void *tmp;
+        if (a < h->len && h->comparison_f(h->heap[a], h->heap[j])) j = a;
+        if (b < h->len && h->comparison_f(h->heap[b], h->heap[j])) j = b;
+        if (i == j) break;
+        tmp = h->heap[j];
+        h->heap[j] = h->heap[i];
+        h->heap[i] = tmp;
+        i = j;
+    }
+}
+
+void *rl_heap_pop(RL_Heap *h)
+{
+    void *r;
+    if (h == NULL) {
+        return NULL;
+    }
+
+    r = NULL;
+    if (h->len) {
+        rl_assert(h->heap);
+        r = h->heap[0];
+        rl_heap_remove(h, 0);
+    }
+    return r;
+}
+
+void *rl_heap_peek(RL_Heap *h)
+{
+    if (h == NULL) {
+        return NULL;
+    }
+
+    rl_assert(h->heap);
+    if (h->len) {
+        return h->heap[0];
+    } else {
+        return NULL;
+    }
+}
+
 #if RL_ENABLE_PATHFINDING
+/* simplified distance for side by side nodes */
+static float rl_distance_simple(RL_Point node, RL_Point end)
+{
+    if (node.x == end.x && node.y == end.y) return 0;
+    if (node.x == end.x || node.y == end.y) return 1;
+    return 1.4;
+}
+
+static int rl_scored_graph_heap_comparison(const void *heap_item_a, const void *heap_item_b)
+{
+    RL_GraphNode *node_a = (RL_GraphNode*) heap_item_a;
+    RL_GraphNode *node_b = (RL_GraphNode*) heap_item_b;
+
+    return node_a->score < node_b->score;
+}
+
+RL_Path *rl_path(RL_Point p)
+{
+    RL_Path *path = (RL_Path*) rl_malloc(sizeof(*path));
+    rl_assert(path);
+    if (path == NULL) return NULL;
+    path->next = NULL;
+    path->point = p;
+
+    return path;
+}
+
+float rl_distance_manhattan(RL_Point node, RL_Point end)
+{
+    return fabs(node.x - end.x) + fabs(node.y - end.y);
+}
+
+float rl_distance_euclidian(RL_Point node, RL_Point end)
+{
+    float distance_x = node.x - end.x;
+    float distance_y = node.y - end.y;
+
+    return sqrt(distance_x * distance_x + distance_y * distance_y);
+}
+
+float rl_distance_chebyshev(RL_Point node, RL_Point end)
+{
+    float distance_x = fabs(node.x - end.x);
+    float distance_y = fabs(node.y - end.y);
+
+    return distance_x > distance_y ? distance_x : distance_y;
+}
+
 /* custom Dijkstra scorer function to prevent carving double wide doors when carving corridors */
 static inline float rl_mapgen_corridor_scorer(RL_GraphNode *current, RL_GraphNode *neighbor, void *context)
 {
@@ -1384,189 +1574,6 @@ RL_Graph *rl_graph_floodfill_largest_area(const RL_Map *map)
     return floodfill;
 }
 
-/**
- * Heap functions for pathfinding
- *
- * Ref: https://gist.github.com/skeeto/f012a207aff1753662b679917f706de6
- */
-
-static int rl_heap_noop_comparison_f(const void *_a, const void *_b)
-{
-    RL_UNUSED(_a);
-    RL_UNUSED(_b);
-    return 1;
-}
-
-RL_Heap *rl_heap_create(int capacity, int (*comparison_f)(const void *heap_item_a, const void *heap_item_b))
-{
-    RL_Heap *heap = (RL_Heap*) rl_malloc(sizeof(*heap));
-    rl_assert(heap);
-    if (heap == NULL) {
-        return NULL;
-    }
-    heap->heap = (void**) rl_malloc(sizeof(*heap->heap) * capacity);
-    rl_assert(heap->heap);
-    if (heap->heap == NULL) {
-        rl_free(heap);
-        return NULL;
-    }
-
-    if (comparison_f == NULL) {
-        comparison_f = rl_heap_noop_comparison_f;
-    }
-
-    heap->cap = capacity;
-    heap->comparison_f = comparison_f;
-    heap->len = 0;
-
-    return heap;
-}
-
-void rl_heap_destroy(RL_Heap *h)
-{
-    if (h) {
-        if (h->heap) {
-            rl_free(h->heap);
-        }
-        rl_free(h);
-    }
-}
-
-int rl_heap_length(RL_Heap *h)
-{
-    if (h == NULL) return 0;
-    return h->len;
-}
-
-bool rl_heap_insert(RL_Heap *h, void *item)
-{
-    rl_assert(h != NULL);
-    if (h == NULL) return false;
-
-    if (h->len == h->cap) {
-        /* resize the heap */
-        void **heap_items = (void**) rl_realloc(h->heap, sizeof(void*) * h->cap * 2);
-        rl_assert(heap_items);
-        if (heap_items == NULL) {
-            rl_heap_destroy(h);
-            return false;
-        }
-        h->heap = heap_items;
-        h->cap *= 2;
-    }
-
-    h->heap[h->len] = item;
-    for (int i = h->len++; i;) {
-        int p = (i - 1) / 2;
-        if (h->comparison_f(h->heap[p], h->heap[i])) {
-            break;
-        }
-        void *tmp = h->heap[p];
-        h->heap[p] = h->heap[i];
-        h->heap[i] = tmp;
-        i = p;
-    }
-    return true;
-}
-
-static void rl_heap_remove(RL_Heap *h, int index)
-{
-    rl_assert(h);
-    if (h == NULL) {
-        return;
-    }
-
-    h->heap[index] = h->heap[--h->len];
-    for (int i = index;;) {
-        int a = 2*i + 1;
-        int b = 2*i + 2;
-        int j = i;
-        if (a < h->len && h->comparison_f(h->heap[a], h->heap[j])) j = a;
-        if (b < h->len && h->comparison_f(h->heap[b], h->heap[j])) j = b;
-        if (i == j) break;
-        void *tmp = h->heap[j];
-        h->heap[j] = h->heap[i];
-        h->heap[i] = tmp;
-        i = j;
-    }
-}
-
-void *rl_heap_pop(RL_Heap *h)
-{
-    if (h == NULL) {
-        return NULL;
-    }
-
-    void *r = NULL;
-    if (h->len) {
-        rl_assert(h->heap);
-        r = h->heap[0];
-        rl_heap_remove(h, 0);
-    }
-    return r;
-}
-
-void *rl_heap_peek(RL_Heap *h)
-{
-    if (h == NULL) {
-        return NULL;
-    }
-
-    rl_assert(h->heap);
-    if (h->len) {
-        return h->heap[0];
-    } else {
-        return NULL;
-    }
-}
-
-/* simplified distance for side by side nodes */
-static float rl_distance_simple(RL_Point node, RL_Point end)
-{
-    if (node.x == end.x && node.y == end.y) return 0;
-    if (node.x == end.x || node.y == end.y) return 1;
-    return 1.4;
-}
-
-static int rl_scored_graph_heap_comparison(const void *heap_item_a, const void *heap_item_b)
-{
-    RL_GraphNode *node_a = (RL_GraphNode*) heap_item_a;
-    RL_GraphNode *node_b = (RL_GraphNode*) heap_item_b;
-
-    return node_a->score < node_b->score;
-}
-
-RL_Path *rl_path(RL_Point p)
-{
-    RL_Path *path = (RL_Path*) rl_malloc(sizeof(*path));
-    rl_assert(path);
-    if (path == NULL) return NULL;
-    path->next = NULL;
-    path->point = p;
-
-    return path;
-}
-
-float rl_distance_manhattan(RL_Point node, RL_Point end)
-{
-    return fabs(node.x - end.x) + fabs(node.y - end.y);
-}
-
-float rl_distance_euclidian(RL_Point node, RL_Point end)
-{
-    float distance_x = node.x - end.x;
-    float distance_y = node.y - end.y;
-
-    return sqrt(distance_x * distance_x + distance_y * distance_y);
-}
-
-float rl_distance_chebyshev(RL_Point node, RL_Point end)
-{
-    float distance_x = fabs(node.x - end.x);
-    float distance_y = fabs(node.y - end.y);
-
-    return distance_x > distance_y ? distance_x : distance_y;
-}
 
 RL_Path *rl_line_create(RL_Point a, RL_Point b, float step)
 {
