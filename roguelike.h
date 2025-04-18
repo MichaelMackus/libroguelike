@@ -33,13 +33,13 @@ extern "C" {
  */
 
 /* This is a helper since MSVC & c89 don't support compound literals */
-#ifndef CLITERAL
+#ifndef RL_CLITERAL
 #if _MSVC_LANG
-#define CLITERAL(type) type
+#define RL_CLITERAL(type) type
 #elif __STDC_VERSION__ < 199409L
-#define CLITERAL(type)
+#define RL_CLITERAL(type)
 #else
-#define CLITERAL(type) (type)
+#define RL_CLITERAL(type) (type)
 #endif
 #endif
 
@@ -102,7 +102,7 @@ void rl_map_destroy(RL_Map *map);
  * most interesting & aesthetic maps. */
 typedef enum {
     RL_ConnectNone = 0,       /* don't connect corridors */
-    RL_ConnectRandomly,       /* connect corridors to random leaf nodes (requires RL_ENABLE_PATHFINDING) */
+    RL_ConnectRandomly,       /* connect corridors to random leaf nodes (requires RL_ENABLE_PATHFINDING, by default this is on) */
     RL_ConnectBSP,            /* connect corridors by traversing the BSP graph (faster than above but less circular/interesting maps, requires RL_ENABLE_PATHFINDING) */
     RL_ConnectSimple          /* connect corridors by traversing the BSP graph without Dijkstra pathfinding (fastest) */
 } RL_MapgenCorridorConnection;
@@ -121,7 +121,7 @@ typedef struct {
 } RL_MapgenConfigBSP;
 
 /* Provide some defaults for mapgen. */
-#define RL_MAPGEN_BSP_DEFAULTS CLITERAL(RL_MapgenConfigBSP) { \
+#define RL_MAPGEN_BSP_DEFAULTS RL_CLITERAL(RL_MapgenConfigBSP) { \
     /*.room_min_width =*/      4, \
     /*.room_max_width =*/      6, \
     /*.room_min_height =*/     4, \
@@ -265,12 +265,13 @@ RL_BSP *rl_bsp_next_leaf(RL_BSP *node);
 RL_BSP* rl_bsp_random_leaf(RL_BSP *root);
 
 /**
- * Pathfinding
+ * Pathfinding - disable with #define RL_ENABLE_PATHFINDING 0
  */
 
 #ifndef RL_ENABLE_PATHFINDING
 #define RL_ENABLE_PATHFINDING 1
 #endif
+
 #if RL_ENABLE_PATHFINDING
 #include <float.h>
 #include <math.h>
@@ -282,7 +283,7 @@ typedef struct RL_Point {
 } RL_Point;
 
 /* Macro to easily create a RL_Point (compound literals only available in C99, which MSVC doesn't support). */
-#define RL_XY(x, y) CLITERAL(RL_Point) { (float)(x), (float)(y) }
+#define RL_XY(x, y) RL_CLITERAL(RL_Point) { (float)(x), (float)(y) }
 
 /* Max neighbors for a pathfinding node. */
 #ifndef RL_MAX_NEIGHBOR_COUNT
@@ -290,6 +291,7 @@ typedef struct RL_Point {
 #endif
 
 /* Represents a graph of pathfinding nodes that has been scored for pathfinding (e.g. with the Dijkstra algorithm). */
+/* TODO store weights on graph nodes ? */
 typedef struct RL_GraphNode {
     float score; /* will be FLT_MAX for an unreachable/unscored node in the Dijkstra algorithm */
     RL_Point point;
@@ -376,15 +378,14 @@ void rl_graph_destroy(RL_Graph *graph);
 #endif /* RL_ENABLE_PATHFINDING */
 
 /**
- * FOV
+ * FOV - disable with #define RL_ENABLE_FOV 0
  */
 
 #ifndef RL_ENABLE_FOV
 #define RL_ENABLE_FOV 1
 #endif
-#if RL_ENABLE_FOV
-#include <math.h>
 
+#if RL_ENABLE_FOV
 /* Structure containing information for the FOV algorithm, along with the associated visibility enum. */
 typedef enum {
     RL_TileCannotSee = 0,
@@ -403,27 +404,29 @@ RL_FOV *rl_fov_create(unsigned int width, unsigned int height);
 /* Frees the FOV & internal memory. */
 void rl_fov_destroy(RL_FOV *fov);
 
+/* Function to determine if a tile is within the range of the FOV. */
+typedef bool (*RL_IsInRangeFun)(unsigned int x, unsigned int y, void *context);
 /* Function to determine if a tile is considered Opaque for FOV calculation. Make sure you do bounds checking that the point is within your map. */
-typedef bool (*RL_IsOpaqueFun)(RL_Point point, void *context);
+typedef bool (*RL_IsOpaqueFun)(unsigned int x, unsigned int y, void *context);
 /* Function to mark a tile as visible within the FOV. Make sure you do bounds checking that the point is within your map. */
-typedef void (*RL_MarkAsVisibleFun)(RL_Point point, void *context);
+typedef void (*RL_MarkAsVisibleFun)(unsigned int x, unsigned int y, void *context);
 
 /* Calculate FOV using simple shadowcasting algorithm. Set fov_radius to a negative value to have unlimited FOV (note
  * this is limited by RL_MAX_RECURSION).
  *
  * Note that this sets previously visible tiles to RL_TileSeen. */
-void rl_fov_calculate(RL_FOV *fov, const RL_Map *map, unsigned int x, unsigned int y, int fov_radius, RL_DistanceFun distance_f);
+void rl_fov_calculate(RL_FOV *fov, const RL_Map *map, unsigned int x, unsigned int y, int fov_radius);
 
 /* Calculate FOV using simple shadowcasting algorithm. Set fov_radius to a negative value to have unlimited FOV (note
  * this is limited by RL_MAX_RECURSION).
  *
  * Generic version of above function. */
-void rl_fov_calculate_ex(void *context, unsigned int x, unsigned int y, int fov_radius, RL_DistanceFun distance_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f);
+void rl_fov_calculate_ex(void *context, unsigned int x, unsigned int y, RL_IsInRangeFun in_range_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f);
 
-/* Checks if a point is visible within FOV. Make sure to call rl_fov_calculate_for_map first. */
+/* Checks if a point is visible within FOV. Make sure to call rl_fov_calculate first. */
 bool rl_fov_is_visible(const RL_FOV *map, unsigned int x, unsigned int y);
 
-/* Checks if a point has been seen within FOV. Make sure to call rl_fov_calculate_for_map first. */
+/* Checks if a point has been seen within FOV. Make sure to call rl_fov_calculate first. */
 bool rl_fov_is_seen(const RL_FOV *map, unsigned int x, unsigned int y);
 #endif /* RL_ENABLE_FOV */
 
@@ -1808,11 +1811,13 @@ void rl_graph_destroy(RL_Graph *graph)
 #if RL_ENABLE_FOV
 RL_FOV *rl_fov_create(unsigned int width, unsigned int height)
 {
+    RL_FOV *fov;
+    unsigned char *memory;
     rl_assert(width > 0 && height > 0);
     rl_assert(width != UINT_MAX && !(width > UINT_MAX / height)); /* check for overflow */
-    RL_FOV *fov = NULL;
+    fov = NULL;
     /* allocate all the memory we need at once */
-    unsigned char *memory = (unsigned char*) rl_calloc(sizeof(*fov) + sizeof(*fov->visibility)*width*height, 1);
+    memory = (unsigned char*) rl_calloc(sizeof(*fov) + sizeof(*fov->visibility)*width*height, 1);
     rl_assert(memory);
     if (memory == NULL) return NULL;
     fov = (RL_FOV*) memory;
@@ -1839,12 +1844,12 @@ typedef struct {
 
 /* adapted from: https://www.adammil.net/blog/v125_Roguelike_Vision_Algorithms.html#shadowcode (public domain) */
 /* also see: https://www.roguebasin.com/index.php/FOV_using_recursive_shadowcasting */
-void rl_fov_calculate_recursive(void *map, RL_Point origin, int fov_radius, RL_DistanceFun distance_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f, unsigned int octant, float x, RL_Slope top, RL_Slope bottom)
+void rl_fov_calculate_recursive(void *map, unsigned int origin_x, unsigned int origin_y, RL_IsInRangeFun in_range_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f, unsigned int octant, float x, RL_Slope top, RL_Slope bottom)
 {
-    rl_assert(distance_f);
+    rl_assert(in_range_f);
     rl_assert(opaque_f);
     rl_assert(mark_visible_f);
-    for(; x <= (unsigned int) fov_radius && x < RL_MAX_RECURSION; x++)
+    for(; x < RL_MAX_RECURSION; x++)
     {
         /* compute the Y coordinates where the top vector leaves the column (on the right) and where the bottom vector */
         /* enters the column (on the left). this equals (x+0.5)*top+0.5 and (x-0.5)*bottom+0.5 respectively, which can */
@@ -1853,9 +1858,11 @@ void rl_fov_calculate_recursive(void *map, RL_Point origin, int fov_radius, RL_D
         int topY = top.X == 1 ? x : ((x*2+1) * top.Y + top.X - 1) / (top.X*2); /* the rounding is a bit tricky, though */
         int bottomY = bottom.Y == 0 ? 0 : ((x*2-1) * bottom.Y + bottom.X) / (bottom.X*2);
         int wasOpaque = -1; /* 0:false, 1:true, -1:not applicable */
-        for(int y=topY; y >= bottomY; y--)
+        int y;
+        for(y=topY; y >= bottomY; y--)
         {
-            float tx = origin.x, ty = origin.y;
+            float tx = origin_x, ty = origin_y;
+            bool inRange, isOpaque;
             switch(octant) /* translate local coordinates to map coordinates */
             {
                 case 0: tx += x; ty -= y; break;
@@ -1868,33 +1875,35 @@ void rl_fov_calculate_recursive(void *map, RL_Point origin, int fov_radius, RL_D
                 case 7: tx += x; ty += y; break;
             }
 
-            bool inRange = fov_radius < 0 || distance_f(origin, RL_XY(tx, ty)) <= (float)fov_radius;
+            inRange = in_range_f(tx, ty, map);
             if(inRange) {
                 if (RL_FOV_SYMMETRIC && (y != topY || top.Y*(int)x >= top.X*y) && (y != bottomY || bottom.Y*(int)x <= bottom.X*y)) {
-                    mark_visible_f(RL_XY(tx, ty), map);
+                    mark_visible_f(tx, ty, map);
                 } else {
-                    mark_visible_f(RL_XY(tx, ty), map);
+                    mark_visible_f(tx, ty, map);
                 }
             }
 
-            bool isOpaque = !inRange || !opaque_f(RL_XY(tx, ty), map);
-            if((int)x != fov_radius)
+            isOpaque = !inRange || !opaque_f(tx, ty, map);
+            if(isOpaque)
             {
-                if(isOpaque)
-                {
-                    if(wasOpaque == 0) /* if we found a transition from clear to opaque, this sector is done in this column, so */
-                    {                  /* adjust the bottom vector upwards and continue processing it in the next column. */
-                        RL_Slope newBottom = { (y*2+1), (x*2-1) }; /* (x*2-1, y*2+1) is a vector to the top-left of the opaque tile */
-                        if(!inRange || y == bottomY) { bottom = newBottom; break; } /* don't recurse unless we have to */
-                        else if (x < (unsigned int) fov_radius) rl_fov_calculate_recursive(map, origin, fov_radius, distance_f, opaque_f, mark_visible_f, octant, x+1, top, newBottom);
-                    }
-                    wasOpaque = 1;
+                if(wasOpaque == 0) /* if we found a transition from clear to opaque, this sector is done in this column, so */
+                {                  /* adjust the bottom vector upwards and continue processing it in the next column. */
+                    RL_Slope newBottom;
+                    newBottom.Y = y*2 + 1; /* (x*2-1, y*2+1) is a vector to the top-left of the opaque tile */
+                    newBottom.X = x*2 - 1;
+                    if(!inRange || y == bottomY) { bottom = newBottom; break; } /* don't recurse unless we have to */
+                    else if (inRange) rl_fov_calculate_recursive(map, origin_x, origin_y, in_range_f, opaque_f, mark_visible_f, octant, x+1, top, newBottom);
                 }
-                else /* adjust top vector downwards and continue if we found a transition from opaque to clear */
-                {    /* (x*2+1, y*2+1) is the top-right corner of the clear tile (i.e. the bottom-right of the opaque tile) */
-                    if(wasOpaque > 0) top = (RL_Slope) { (y*2+1), (x*2+1) };
-                    wasOpaque = 0;
+                wasOpaque = 1;
+            }
+            else /* adjust top vector downwards and continue if we found a transition from opaque to clear */
+            {    /* (x*2+1, y*2+1) is the top-right corner of the clear tile (i.e. the bottom-right of the opaque tile) */
+                if(wasOpaque > 0) {
+                    top.Y = y*2 + 1;
+                    top.X = x*2 + 1;
                 }
+                wasOpaque = 0;
             }
         }
 
@@ -1905,49 +1914,82 @@ void rl_fov_calculate_recursive(void *map, RL_Point origin, int fov_radius, RL_D
 struct RL_FOVMap {
     RL_FOV *fov;
     const RL_Map *map;
+    unsigned int origin_x;
+    unsigned int origin_y;
+    int fov_radius;
 };
 
-void rl_fovmap_mark_visible_f(RL_Point p, void *context)
+void rl_fovmap_mark_visible_f(unsigned int x, unsigned int y, void *context)
 {
     struct RL_FOVMap *map = (struct RL_FOVMap*) context;
-    if (rl_map_in_bounds(map->map, floor(p.x), floor(p.y))) {
-        map->fov->visibility[(size_t)floor(p.x) + (size_t)floor(p.y)*map->map->width] = RL_TileVisible;
+    if (rl_map_in_bounds(map->map, x, y)) {
+        map->fov->visibility[x + y*map->map->width] = RL_TileVisible;
     }
 }
 
-bool rl_fovmap_opaque_f(RL_Point p, void *context)
+bool rl_fovmap_opaque_f(unsigned int x, unsigned int y, void *context)
 {
     struct RL_FOVMap *map = (struct RL_FOVMap*) context;
-    if (!rl_map_in_bounds(map->map, floor(p.x), floor(p.y))) {
+    if (!rl_map_in_bounds(map->map, x, y)) {
         return true;
     }
-    return rl_map_is_passable(map->map, floor(p.x), floor(p.y));
+    return rl_map_is_passable(map->map, x, y);
 }
 
-void rl_fov_calculate(RL_FOV *fov, const RL_Map *map, unsigned int x, unsigned int y, int fov_radius, RL_DistanceFun distance_f)
+#ifndef RL_FOV_DISTANCE_F
+#define RL_FOV_DISTANCE_F rl_distance_euclidian
+#endif
+bool rl_fovmap_in_range_f(unsigned int x, unsigned int y, void *context)
 {
+    struct RL_FOVMap *map = (struct RL_FOVMap*) context;
+#if RL_ENABLE_PATHFINDING
+    RL_Point p1, p2;
+    p1.x = map->origin_x;
+    p1.y = map->origin_y;
+    p2.x = x;
+    p2.y = y;
+    return map->fov_radius < 0 || RL_FOV_DISTANCE_F(p1, p2) <= (float)map->fov_radius;
+#else
+    /* simplistic manhattan distance distance */
+    int diff_x = (int)map->origin_x - (int)x;
+    int diff_y = (int)map->origin_y - (int)y;
+    if (diff_x < 0) diff_x *= -1;
+    if (diff_y < 0) diff_y *= -1;
+    return map->fov_radius < 0 || diff_x + diff_y < map->fov_radius;
+#endif
+}
+
+void rl_fov_calculate(RL_FOV *fov, const RL_Map *map, unsigned int x, unsigned int y, int fov_radius)
+{
+    struct RL_FOVMap fovmap;
+    unsigned int cur_x, cur_y;
     if (!rl_map_in_bounds(map, x, y)) {
         return;
     }
     /* set previously visible tiles to seen */
-    for (unsigned int x=0; x<map->width; ++x) {
-        for (unsigned int y=0; y<map->height; ++y) {
-            if (fov->visibility[x + y*map->width] == RL_TileVisible) {
-                fov->visibility[x + y*map->width] = RL_TileSeen;
+    for (cur_x=0; cur_x<map->width; ++cur_x) {
+        for (cur_y=0; cur_y<map->height; ++cur_y) {
+            if (fov->visibility[cur_x + cur_y*map->width] == RL_TileVisible) {
+                fov->visibility[cur_x + cur_y*map->width] = RL_TileSeen;
             }
         }
     }
-    struct RL_FOVMap fovmap;
     fovmap.map = map;
     fovmap.fov = fov;
-    rl_fov_calculate_ex(&fovmap, x, y, fov_radius, distance_f, rl_fovmap_opaque_f, rl_fovmap_mark_visible_f);
+    fovmap.origin_x = x;
+    fovmap.origin_y = y;
+    fovmap.fov_radius = fov_radius;
+    rl_fov_calculate_ex(&fovmap, x, y, rl_fovmap_in_range_f, rl_fovmap_opaque_f, rl_fovmap_mark_visible_f);
 }
 
-void rl_fov_calculate_ex(void *context, unsigned int x, unsigned int y, int fov_radius, RL_DistanceFun distance_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f)
+void rl_fov_calculate_ex(void *context, unsigned int x, unsigned int y, RL_IsInRangeFun in_range_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f)
 {
-    mark_visible_f(RL_XY(x, y), context);
-    for (int octant=0; octant<8; ++octant) {
-        rl_fov_calculate_recursive(context, RL_XY(x, y), fov_radius, distance_f, opaque_f, mark_visible_f, octant, 1, (RL_Slope) { 1, 1 }, (RL_Slope) { 0, 1 });
+    int octant;
+    RL_Slope from = { 1, 1 };
+    RL_Slope to = { 0, 1 };
+    mark_visible_f(x, y, context);
+    for (octant=0; octant<8; ++octant) {
+        rl_fov_calculate_recursive(context, x, y, in_range_f, opaque_f, mark_visible_f, octant, 1, from, to);
     }
 }
 
