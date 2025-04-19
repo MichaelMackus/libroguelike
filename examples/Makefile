@@ -21,4 +21,4 @@ test-cpp: test.cpp ../roguelike.h
 	$(CC) $(CFLAGS) -o $@ $< $(LIBFLAGS)
 
 clean:
-	rm $(BINS)
+	rm $(BINS) *.o

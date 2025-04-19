@@ -12,7 +12,7 @@ jobs:
    steps:
    - run:   |
             sudo apt update
-            sudo apt install -y build-essential gcc clang
+            sudo apt install -y build-essential gcc clang cc65
      shell: bash
    - name: checkout repo
      uses: actions/checkout@main
@@ -20,3 +20,6 @@ jobs:
      run: make -B
    - name: build application with clang
      run: make -B CC=clang
+   - name: build application with cc65 (commodore 64 compiler)
+     run: cl65 -DRL_ENABLE_FOV=0 -DRL_MAPGEN_BSP_RANDOMISE_ROOM_LOC=0 examples/c89.c
+     shell: bash
