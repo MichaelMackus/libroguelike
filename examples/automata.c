@@ -20,10 +20,15 @@ int main()
     for (unsigned int y=0; y<map->height; ++y) {
         for (unsigned int x=0; x<map->width; ++x) {
             RL_Tile t = map->tiles[x + y*map->width];
-            printf("%c", t == RL_TileRock ? '#' : ' ');
+            if (t == RL_TileRoom || t == RL_TileCorridor)
+                printf("%c", '.');
+            else
+                printf("%c", rl_map_is_wall(map, x, y) ? '*' : ' ');
         }
         printf("\n");
     }
+
+    rl_map_destroy(map);
 
     return 0;
 }

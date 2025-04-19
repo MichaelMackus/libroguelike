@@ -157,7 +157,12 @@ typedef struct {
     unsigned int birth_threshold;    /* threshold of neighbors for a cell to be born */
     unsigned int survival_threshold; /* threshold of neighbors for a cell to die from overpopulation */
     unsigned int max_iterations;     /* recursion limit */
-    bool cull_unconnected;           /* after generation, whether to remove unconnected space from the larger map */
+    bool draw_corridors;             /* after generation, whether to randomly draw corridors to unconnected space
+                                      * note - you still need cull_unconnected if you want a fully connected map
+                                      *
+                                      * requires RL_ENABLE_PATHFINDING */
+    bool cull_unconnected;           /* after generation, whether to remove unconnected space from the larger map - requires RL_ENABLE_PATHFINDING */
+    bool fill_border;                /* after generation, whether to fill the border with rock to ensure enclosed map*/
 } RL_MapgenConfigAutomata;
 
 /* Provide some defaults for automata mapgen. */
@@ -166,7 +171,9 @@ typedef struct {
     /*.birth_threshold =*/          5, \
     /*.survival_threshold =*/       4, \
     /*.max_iterations =*/           3, \
-    /*.cull_unconnected =*/         true \
+    /*.draw_corridors = */          true, \
+    /*.cull_unconnected =*/         true, \
+    /*.fill_border =*/              true \
 }
 
 /* Generate map with cellular automata. This clears out the previous tiles before generation. */
@@ -1139,6 +1146,9 @@ RL_Status rl_mapgen_automata(RL_Map *map, RL_MapgenConfigAutomata config)
     return rl_mapgen_automata_ex(map, 0, 0, map->width, map->height, &config);
 }
 
+#if RL_ENABLE_PATHFINDING
+static inline float rl_mapgen_corridor_scorer(RL_GraphNode *current, RL_GraphNode *neighbor, void *context);
+#endif
 RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int offset_y, unsigned int width, unsigned int height,  const RL_MapgenConfigAutomata *config)
 {
     unsigned int i, x, y;
@@ -1176,6 +1186,104 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
         }
     }
 
+    if (config->draw_corridors) {
+#if RL_ENABLE_PATHFINDING
+        /* A very crude algorithm for connecting corridors within the cellular automata. This creates a heap of Dijkstra
+         * graphs, containing each floodfilled region of the map. Then, it goes through each of these regions and
+         * connects it to another random region. This is pretty slow and can be optimized in the future, but works for
+         * now. */
+
+        RL_Heap *heap = rl_heap_create(1, NULL);
+        /* fill floodfills array with a floodfill of each connected space */
+        for (x=offset_x; x<width; ++x) {
+            for (y=offset_y; y<height; ++y) {
+                int i;
+                bool is_scored = false;
+                if (rl_map_is_passable(map, x, y)) {
+                    for (i=0; i<heap->len; ++i) {
+                        RL_Graph *floodfill = (RL_Graph*) heap->heap[i];
+                        if (rl_graph_is_scored(floodfill, RL_XY(x, y))) {
+                            is_scored = true;
+                            break;
+                        }
+                    }
+                    if (!is_scored) {
+                        RL_Graph *floodfill = rl_dijkstra_create(map, RL_XY(x, y), NULL, rl_map_is_passable);
+                        rl_heap_insert(heap, floodfill);
+                    }
+                }
+            }
+        }
+        /* connect each floodfill with another random one */
+        if (heap->len > 1) {
+            int i;
+            RL_Graph *graph = rl_graph_create(map, NULL, 0);
+            rl_assert(graph);
+            for (i=0; i<heap->len; ++i) {
+                RL_Graph *floodfill_target;
+                RL_Graph *floodfill;
+                RL_Point dig_start, dig_end;
+                size_t node_idx;
+                int j = i;
+                floodfill = (RL_Graph*) heap->heap[i];
+                /* find a random target node to connect to */
+                while (j == i) {
+                    j = rl_rng_generate(0, heap->len - 1);
+                }
+                floodfill_target = (RL_Graph*) heap->heap[j];
+                rl_assert(floodfill && floodfill_target);
+                /* find start & end point for corridor pathfinding */
+                for (node_idx=0; node_idx<floodfill->length; ++node_idx) {
+                    RL_GraphNode *n = &floodfill->nodes[node_idx];
+                    rl_assert(n);
+                    if (n->score < FLT_MAX && rl_map_is_passable(map, n->point.x, n->point.y)) {
+                        dig_start = n->point;
+                        break;
+                    }
+                }
+                rl_assert(rl_map_is_passable(map, dig_start.x, dig_start.y));
+                for (node_idx=0; node_idx<floodfill_target->length; ++node_idx) {
+                    RL_GraphNode *n = &floodfill_target->nodes[node_idx];
+                    rl_assert(n);
+                    if (n->score < FLT_MAX && rl_map_is_passable(map, n->point.x, n->point.y)) {
+                        dig_end = n->point;
+                        break;
+                    }
+                }
+                rl_assert(rl_map_is_passable(map, dig_end.x, dig_end.y));
+                rl_assert(!(dig_start.x == dig_end.x && dig_start.y == dig_end.y));
+                /* carve out corridors */
+                rl_dijkstra_score_ex(graph, dig_end, rl_mapgen_corridor_scorer, map);
+                RL_Path *path = rl_path_create_from_graph(graph, dig_start);
+                rl_assert(path);
+                while ((path = rl_path_walk(path))) {
+                    if (rl_map_tile_is(map, path->point.x, path->point.y, RL_TileRock)) {
+                        map->tiles[(size_t)floor(path->point.x) + (size_t)floor(path->point.y) * map->width] = RL_TileCorridor;
+                    }
+                }
+            }
+            rl_graph_destroy(graph);
+        }
+        /* cleanup */
+        RL_Graph *floodfill = NULL;
+        while ((floodfill = (RL_Graph*) rl_heap_pop(heap))) {
+            rl_graph_destroy(floodfill);
+        }
+        rl_heap_destroy(heap);
+#else
+        return RL_ErrorMapgenInvalidConfig;
+#endif
+    }
+    if (config->fill_border) {
+        x = 0;
+        for (y=offset_y; y<height; ++y) map->tiles[x + y*map->width] = RL_TileRock;
+        x = width - 1;
+        for (y=offset_y; y<height; ++y) map->tiles[x + y*map->width] = RL_TileRock;
+        y = 0;
+        for (x=offset_x; x<width; ++x) map->tiles[x + y*map->width] = RL_TileRock;
+        y = height - 1;
+        for (x=offset_x; x<width; ++x) map->tiles[x + y*map->width] = RL_TileRock;
+    }
     if (config->cull_unconnected) {
 #if RL_ENABLE_PATHFINDING
         RL_Graph *floodfill = rl_graph_floodfill_largest_area(map);
@@ -1187,6 +1295,7 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
                     }
                 }
             }
+            rl_graph_destroy(floodfill);
         }
 #else
         return RL_ErrorMapgenInvalidConfig;
@@ -1342,6 +1451,7 @@ RL_Heap *rl_heap_create(int capacity, int (*comparison_f)(const void *heap_item_
     RL_Heap *heap;
     heap = (RL_Heap*) rl_malloc(sizeof(*heap));
     rl_assert(heap);
+    rl_assert(capacity > 0);
     if (heap == NULL) {
         return NULL;
     }
