@@ -12,11 +12,11 @@ jobs:
    steps:
    - run:   |
             sudo apt update
-            sudo apt install gcc g++ clang
+            sudo apt install -y build-essential gcc clang
      shell: bash
    - name: checkout repo
      uses: actions/checkout@main
-   - name: build application with GCC
+   - name: build application with default compiler (GCC)
      run: make -B
    - name: build application with clang
      run: make -B CC=clang

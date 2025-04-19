@@ -705,7 +705,7 @@ unsigned int rl_rng_generate(unsigned int min, unsigned int max)
         return min;
 
     rnd = rand();
-    if (rnd < 0) rnd = abs(rnd); /* fixes issue on LLVM MOS */
+    if (rnd < 0) rnd *= -1; /* fixes issue on LLVM MOS */
 
     /* produces more uniformity than using mod */
     return min + rnd / (RAND_MAX / (max - min + 1) + 1);
