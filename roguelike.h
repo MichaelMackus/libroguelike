@@ -136,16 +136,44 @@ typedef enum {
     RL_OK = 0,
     RL_ErrorMemory,
     RL_ErrorNullParameter,
-    RL_ErrorMapgenInvalidCorridorAlgorithm
+    RL_ErrorMapgenInvalidConfig
 } RL_Status;
 
 /* Generate map with recursive BSP split algorithm. This fills the map tiles with RL_TileRock before generation. */
 RL_Status rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config);
 
-/* Generates map with recursive BSP split algorithm. This splits the BSP pointer passed. This allocates memory for the
- * BSP children - make sure to use rl_bsp_destroy or free them yourself. Note that this does not set the tiles to
- * RL_TileRock before generation. This way you can have separate regions of the map with different mapgen algorithms. */
+/* Generates map with recursive BSP split algorithm. This splits the BSP pointer passed, and uses the BSP to constrain
+ * the dimensions of the map generation.
+ *
+ * This allocates memory for the BSP children - make sure to use rl_bsp_destroy or free them yourself. Note that this
+ * does not set the tiles to RL_TileRock before generation. This way you can have separate regions of the map with
+ * different mapgen algorithms. */
 RL_Status rl_mapgen_bsp_ex(RL_Map *map, RL_BSP *bsp, const RL_MapgenConfigBSP *config);
+
+/* The config for BSP map generation - note that the dimensions *include* the walls on both sides, so the min room width
+ * & height the library accepts is 3. */
+typedef struct {
+    float chance_cell_initialized;   /* chance (from 0-1) a cell is initialized with rock */
+    unsigned int birth_threshold;    /* threshold of neighbors for a cell to be born */
+    unsigned int survival_threshold; /* threshold of neighbors for a cell to die from overpopulation */
+    unsigned int max_iterations;     /* recursion limit */
+    bool cull_unconnected;           /* after generation, whether to remove unconnected space from the larger map */
+} RL_MapgenConfigAutomata;
+
+/* Provide some defaults for automata mapgen. */
+#define RL_MAPGEN_AUTOMATA_DEFAULTS RL_CLITERAL(RL_MapgenConfigAutomata) { \
+    /*.chance_cell_initialized =*/ .45, \
+    /*.birth_threshold =*/          5, \
+    /*.survival_threshold =*/       4, \
+    /*.max_iterations =*/           3, \
+    /*.cull_unconnected =*/         true \
+}
+
+/* Generate map with cellular automata. This clears out the previous tiles before generation. */
+RL_Status rl_mapgen_automata(RL_Map *map, RL_MapgenConfigAutomata config);
+
+/* Same as above function, but constrains generation according to passed dimensions. */
+RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int x, unsigned int y, unsigned int width, unsigned int height,  const RL_MapgenConfigAutomata *config);
 
 /* Connect map via corridors using the supplied BSP graph. */
 RL_Status rl_mapgen_connect_corridors(RL_Map *map, RL_BSP *root, bool draw_doors, RL_MapgenCorridorConnection connection_algorithm);
@@ -367,6 +395,12 @@ RL_Graph *rl_graph_create(const RL_Map *map, RL_PassableFun passable_f, bool all
 
 /* Frees the graph & internal memory. */
 void rl_graph_destroy(RL_Graph *graph);
+
+/* Checks if coordinate is scored in graph (e.g. its score is less than FLT_MAX). */
+bool rl_graph_is_scored(const RL_Graph *graph, RL_Point point);
+
+/* Returns the node of a point within a graph if it exists */
+const RL_GraphNode *rl_graph_node(const RL_Graph *graph, RL_Point point);
 
 /**
  * FOV - disable with #define RL_ENABLE_FOV 0
@@ -1083,6 +1117,85 @@ void rl_bsp_find_room(RL_Map *map, RL_BSP *leaf, unsigned int *dx, unsigned int 
     }
 }
 
+bool rl_mapgen_automata_is_alive(const RL_Map *map, int x, int y)
+{
+    if (!rl_map_in_bounds(map, x, y)) return true;
+    return rl_map_tile_is(map, x, y, RL_TileRock);
+}
+unsigned int rl_mapgen_automata_alive_neighbors(const RL_Map *map, int x, int y)
+{
+    return rl_mapgen_automata_is_alive(map, x + 1, y) +
+           rl_mapgen_automata_is_alive(map, x - 1, y) +
+           rl_mapgen_automata_is_alive(map, x,     y + 1) +
+           rl_mapgen_automata_is_alive(map, x,     y - 1) +
+           rl_mapgen_automata_is_alive(map, x + 1, y + 1) +
+           rl_mapgen_automata_is_alive(map, x - 1, y + 1) +
+           rl_mapgen_automata_is_alive(map, x + 1, y - 1) +
+           rl_mapgen_automata_is_alive(map, x - 1, y - 1);
+}
+
+RL_Status rl_mapgen_automata(RL_Map *map, RL_MapgenConfigAutomata config)
+{
+    return rl_mapgen_automata_ex(map, 0, 0, map->width, map->height, &config);
+}
+
+RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int offset_y, unsigned int width, unsigned int height,  const RL_MapgenConfigAutomata *config)
+{
+    unsigned int i, x, y;
+
+    rl_assert(offset_x < width && offset_y < height);
+    rl_assert(config->chance_cell_initialized > 0 && config->chance_cell_initialized <= 1);
+
+    /* initialize map */
+    for (x=offset_x; x<width; ++x) {
+        for (y=offset_y; y<height; ++y) {
+            unsigned int r = rl_rng_generate(1, 100);
+            if (r <= (unsigned int)(config->chance_cell_initialized * 100)) {
+                map->tiles[x + y*map->width] = RL_TileRock;
+            } else {
+                map->tiles[x + y*map->width] = RL_TileRoom;
+            }
+        }
+    }
+
+    /* cellular automata algorithm */
+    for (i=config->max_iterations; i>0; i--) {
+        for (x=offset_x; x<width; ++x) {
+            for (y=offset_y; y<height; ++y) {
+                unsigned int alive_neighbors = rl_mapgen_automata_alive_neighbors(map, x, y);
+                if (!rl_mapgen_automata_is_alive(map, x, y) && alive_neighbors >= config->birth_threshold) {
+                    /* cell isn't alive but has enough alive neighbors to be born */
+                    map->tiles[x + y*map->width] = RL_TileRock;
+                } else if (rl_mapgen_automata_is_alive(map, x, y) && alive_neighbors >= config->survival_threshold) {
+                    /* cell is alive and has enough alive neighbors to survive */
+                } else {
+                    /* cell dies */
+                    map->tiles[x + y*map->width] = RL_TileRoom;
+                }
+            }
+        }
+    }
+
+    if (config->cull_unconnected) {
+#if RL_ENABLE_PATHFINDING
+        RL_Graph *floodfill = rl_graph_floodfill_largest_area(map);
+        if (floodfill) {
+            for (x=offset_x; x<width; ++x) {
+                for (y=offset_y; y<height; ++y) {
+                    if (!rl_graph_is_scored(floodfill, RL_XY(x, y))) {
+                        map->tiles[x + y*map->width] = RL_TileRock;
+                    }
+                }
+            }
+        }
+#else
+        return RL_ErrorMapgenInvalidConfig;
+#endif
+    }
+
+    return RL_OK;
+}
+
 /* custom corridor connection to most efficiently connect leaves of the BSP tree */
 void rl_mapgen_connect_corridors_simple(RL_Map *map, RL_BSP *root, bool draw_doors)
 {
@@ -1205,7 +1318,7 @@ RL_Status rl_mapgen_connect_corridors(RL_Map *map, RL_BSP *root, bool draw_doors
             break;
 #endif
         default:
-            return RL_ErrorMapgenInvalidCorridorAlgorithm;
+            return RL_ErrorMapgenInvalidConfig;
     }
 
     return RL_OK;
@@ -1706,16 +1819,23 @@ RL_Graph *rl_graph_create(const RL_Map *map, RL_PassableFun passable_f, bool all
             node->neighbors_length = 0;
             node->score = FLT_MAX;
             /* calculate neighbors */
-            RL_Point neighbor_coords[8] = {
-                (RL_Point) { (int)x + 1, (int)y },
-                (RL_Point) { (int)x - 1, (int)y },
-                (RL_Point) { (int)x,     (int)y + 1 },
-                (RL_Point) { (int)x,     (int)y - 1 },
-                (RL_Point) { (int)x + 1, (int)y + 1 },
-                (RL_Point) { (int)x + 1, (int)y - 1 },
-                (RL_Point) { (int)x - 1, (int)y + 1 },
-                (RL_Point) { (int)x - 1, (int)y - 1 },
-            };
+            RL_Point neighbor_coords[8];
+            neighbor_coords[0].x = (int)x + 1;
+            neighbor_coords[0].y = (int)y;
+            neighbor_coords[1].x = (int)x - 1;
+            neighbor_coords[1].y = (int)y;
+            neighbor_coords[2].x = (int)x;
+            neighbor_coords[2].y = (int)y + 1;
+            neighbor_coords[3].x = (int)x;
+            neighbor_coords[3].y = (int)y - 1;
+            neighbor_coords[4].x = (int)x + 1;
+            neighbor_coords[4].y = (int)y + 1;
+            neighbor_coords[5].x = (int)x + 1;
+            neighbor_coords[5].y = (int)y - 1;
+            neighbor_coords[6].x = (int)x - 1;
+            neighbor_coords[6].y = (int)y + 1;
+            neighbor_coords[7].x = (int)x - 1;
+            neighbor_coords[7].y = (int)y - 1;
             for (int i=0; i<8; i++) {
                 if (passable_f && !passable_f(map, neighbor_coords[i].x, neighbor_coords[i].y))
                     continue;
@@ -1813,6 +1933,30 @@ void rl_graph_destroy(RL_Graph *graph)
         }
         rl_free(graph);
     }
+}
+
+bool rl_graph_is_scored(const RL_Graph *graph, RL_Point point)
+{
+    const RL_GraphNode *n = rl_graph_node(graph, point);
+    if (n) {
+        return n->score < FLT_MAX;
+    } else {
+        return false;
+    }
+}
+
+const RL_GraphNode *rl_graph_node(const RL_Graph *graph, RL_Point point)
+{
+    rl_assert(graph);
+    if (graph == NULL) return NULL;
+    for (unsigned int i=0; i<graph->length; ++i) {
+        const RL_GraphNode *n = &graph->nodes[i];
+        rl_assert(n);
+        if (n && n->point.x == point.x && n->point.y == point.y) {
+            return n;
+        }
+    }
+    return NULL;
 }
 #endif /* RL_ENABLE_PATHFINDING */
 
