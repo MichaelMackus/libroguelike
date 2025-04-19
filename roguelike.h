@@ -29,18 +29,26 @@ extern "C" {
 #ifndef RL_ROGUELIKE_H
 #define RL_ROGUELIKE_H
 
-#include <stdbool.h>
 #include <stddef.h>
 
 /* This is a helper since MSVC & c89 don't support compound literals */
 #ifndef RL_CLITERAL
-#if _MSVC_LANG
+#if _MSVC_LANG || __cplusplus
 #define RL_CLITERAL(type) type
 #elif __STDC_VERSION__ < 199409L
 #define RL_CLITERAL(type)
 #else
 #define RL_CLITERAL(type) (type)
 #endif
+#endif
+
+/* Bool type in c89 */
+#if __STDC_VERSION__ < 199409L && !__cplusplus
+typedef int bool;
+#define true 1
+#define false 0
+#else
+#include <stdbool.h>
 #endif
 
 /**
@@ -153,21 +161,21 @@ RL_Status rl_mapgen_bsp_ex(RL_Map *map, RL_BSP *bsp, const RL_MapgenConfigBSP *c
 /* The config for BSP map generation - note that the dimensions *include* the walls on both sides, so the min room width
  * & height the library accepts is 3. */
 typedef struct {
-    float chance_cell_initialized;   /* chance (from 0-1) a cell is initialized with rock */
-    unsigned int birth_threshold;    /* threshold of neighbors for a cell to be born */
-    unsigned int survival_threshold; /* threshold of neighbors for a cell to die from overpopulation */
-    unsigned int max_iterations;     /* recursion limit */
-    bool draw_corridors;             /* after generation, whether to randomly draw corridors to unconnected space
-                                      * note - you still need cull_unconnected if you want a fully connected map
-                                      *
-                                      * requires RL_ENABLE_PATHFINDING */
-    bool cull_unconnected;           /* after generation, whether to remove unconnected space from the larger map - requires RL_ENABLE_PATHFINDING */
-    bool fill_border;                /* after generation, whether to fill the border with rock to ensure enclosed map*/
+    unsigned int chance_cell_initialized; /* chance (from 1-100) a cell is initialized with rock */
+    unsigned int birth_threshold;         /* threshold of neighbors for a cell to be born */
+    unsigned int survival_threshold;      /* threshold of neighbors for a cell to die from overpopulation */
+    unsigned int max_iterations;          /* recursion limit */
+    bool draw_corridors;                  /* after generation, whether to randomly draw corridors to unconnected space
+                                           * note - you still need cull_unconnected if you want a fully connected map
+                                           *
+                                           * requires RL_ENABLE_PATHFINDING */
+    bool cull_unconnected;                /* after generation, whether to remove unconnected space from the larger map - requires RL_ENABLE_PATHFINDING */
+    bool fill_border;                     /* after generation, whether to fill the border with rock to ensure enclosed map*/
 } RL_MapgenConfigAutomata;
 
 /* Provide some defaults for automata mapgen. */
 #define RL_MAPGEN_AUTOMATA_DEFAULTS RL_CLITERAL(RL_MapgenConfigAutomata) { \
-    /*.chance_cell_initialized =*/ .45, \
+    /*.chance_cell_initialized =*/  45, \
     /*.birth_threshold =*/          5, \
     /*.survival_threshold =*/       4, \
     /*.max_iterations =*/           3, \
@@ -467,7 +475,6 @@ unsigned int rl_rng_generate(unsigned int min, unsigned int max);
 #ifdef RL_IMPLEMENTATION
 
 #include <stdlib.h>
-#include <time.h>
 #include <stdint.h>
 #include <string.h>
 #include <limits.h>
@@ -1154,13 +1161,13 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
     unsigned int i, x, y;
 
     rl_assert(offset_x < width && offset_y < height);
-    rl_assert(config->chance_cell_initialized > 0 && config->chance_cell_initialized <= 1);
+    rl_assert(config->chance_cell_initialized > 0 && config->chance_cell_initialized <= 100);
 
     /* initialize map */
     for (x=offset_x; x<width; ++x) {
         for (y=offset_y; y<height; ++y) {
             unsigned int r = rl_rng_generate(1, 100);
-            if (r <= (unsigned int)(config->chance_cell_initialized * 100)) {
+            if (r <= config->chance_cell_initialized) {
                 map->tiles[x + y*map->width] = RL_TileRock;
             } else {
                 map->tiles[x + y*map->width] = RL_TileRoom;
