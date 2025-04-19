@@ -1,5 +1,7 @@
 # libroguelike
 
+[![libroguelike](https://github.com/MichaelMackus/libroguelike/actions/workflows/build.yml/badge.svg)](https://github.com/MichaelMackus/libroguelike/actions/workflows/build.yml)
+
 Simple single-header game library in ANSI C with zero dependencies. Pathfinding
 does require linking with math (`-lm` with gcc). Most useful for roguelike
 devs, but has functionality that should be useful to most 2d tile-based games.
