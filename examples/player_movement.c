@@ -32,9 +32,18 @@ static RL_Point downstair;
 // generate a new map
 void generate_map()
 {
-    if (rl_mapgen_bsp(&map, RL_MAPGEN_BSP_DEFAULTS) != RL_OK) {
-        fprintf(stderr, "Error while generating map!\n");
-        exit(1);
+    if (rl_rng_generate(0, 1)) {
+        if (rl_mapgen_bsp(&map, RL_MAPGEN_BSP_DEFAULTS) != RL_OK) {
+            endwin();
+            fprintf(stderr, "Error while generating BSP map!\n");
+            exit(1);
+        }
+    } else {
+        if (rl_mapgen_automata(&map, RL_MAPGEN_AUTOMATA_DEFAULTS) != RL_OK) {
+            endwin();
+            fprintf(stderr, "Error while generating cellular automata map!\n");
+            exit(1);
+        }
     }
 
     // reset visibility
@@ -133,22 +142,51 @@ int main(int argc, char **argv)
         // handle user input
         RL_Point new_player = player;
         if (!player_path) { // only handle input if we're not moving to a destination path
-            switch (getch()) {
+            int ch = getch();
+            switch (ch) {
                 case 'k':
                 case KEY_UP:
+                case '8':
                     new_player.y -= 1;
                     break;
                 case 'j':
                 case KEY_DOWN:
+                case '2':
                     new_player.y += 1;
                     break;
                 case 'h':
                 case KEY_LEFT:
+                case '4':
                     new_player.x -= 1;
                     break;
                 case 'l':
                 case KEY_RIGHT:
+                case '6':
                     new_player.x += 1;
+                    break;
+                case 'y':
+                case KEY_A1:
+                case '7':
+                    new_player.x -= 1;
+                    new_player.y -= 1;
+                    break;
+                case 'u':
+                case KEY_A3:
+                case '9':
+                    new_player.x += 1;
+                    new_player.y -= 1;
+                    break;
+                case 'b':
+                case KEY_C1:
+                case '1':
+                    new_player.x -= 1;
+                    new_player.y += 1;
+                    break;
+                case 'n':
+                case KEY_C3:
+                case '3':
+                    new_player.x += 1;
+                    new_player.y += 1;
                     break;
                 case 'q':
                     quit = 1;
