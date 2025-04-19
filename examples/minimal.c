@@ -1,9 +1,10 @@
 #include <stdio.h>
+#include <time.h>
 
 #define RL_IMPLEMENTATION
 #include "../roguelike.h"
 
-int main()
+int main(void)
 {
     srand(time(0)); /* seed the RNG */
     RL_Map *map = rl_map_create(80, 25); /* generate tiles memory */

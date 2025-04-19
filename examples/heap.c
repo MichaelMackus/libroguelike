@@ -16,7 +16,7 @@ int test_cmp(const void *d1, const void *d2)
     return tn1->priority < tn2->priority;
 }
 
-int main()
+int main(void)
 {
     int nodes_len = 4;
     TestNode node0 = (TestNode) { .priority = 100, .name = "Ohai" };

@@ -33,7 +33,7 @@ unsigned char map_str[WIDTH * HEIGHT] = "---------------------------------------
 
 RL_Byte visibility[WIDTH * HEIGHT];
 
-int main()
+int main(void)
 {
     RL_Map map = { .width = WIDTH, .height = HEIGHT, .tiles =  map_str };
     RL_FOV fov = { .width = WIDTH, .height = HEIGHT, .visibility =  visibility };

@@ -12,7 +12,7 @@ void print_at(int x, int y, char c)
    printf("\033[%d;%dH%c", y, x, c);
 }
 
-int main()
+int main(void)
 {
     srand(time(0));
 

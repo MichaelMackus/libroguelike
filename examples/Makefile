@@ -1,24 +1,24 @@
 CC=gcc
-CLANG=clang
-CFLAGS=-lm -Wall -Wextra -pedantic -pedantic-errors -Werror -Wswitch -Wswitch-enum -ggdb -std=c99
-CLANGFLAGS=-lm -Wall -Wextra -pedantic -std=c99
+CFLAGS=-Wall -Wextra -pedantic -pedantic-errors -Wswitch -Wswitch-enum -ggdb -std=c99
+LIBFLAGS=-lm
+LIBFLAGS_CURSES=-lcurses
 SRCS=$(wildcard *.c)
 BINS=$(SRCS:%.c=%) test-cpp
 
-all: $(BINS)
+all: $(BINS) roguelike.o
 
-clang: clang.c ../roguelike.h
-	clang $(CLANGFLAGS) -lm -o $@ $<
+roguelike.o: ../roguelike.h
+	$(CC) $(CFLAGS) -x c -c -DRL_IMPLEMENTATION -o $@ $<
 player_movement: player_movement.c ../roguelike.h
-	$(CC) $(CFLAGS) -lcurses -o $@ $<
+	$(CC) $(CFLAGS) -o $@ $(LIBFLAGS) $< $(LIBFLAGS_CURSES)
 simple: simple.c ../roguelike.h
-	$(CC) $(CFLAGS) -lcurses -o $@ $<
+	$(CC) $(CFLAGS) -o $@ $< $(LIBFLAGS) $(LIBFLAGS_CURSES)
 c89: c89.c ../roguelike.h
-	$(CC) $(CFLAGS) -std=c89 -lcurses -o $@ $<
+	$(CC) $(CFLAGS) -std=c89 -o $@ $< $(LIBFLAGS) $(LIBFLAGS_CURSES)
 test-cpp: test.cpp ../roguelike.h
 	g++ -lm -Wno-narrowing -o $@ $<
 %: %.c ../roguelike.h
-	$(CC) $(CFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) -o $@ $< $(LIBFLAGS)
 
 clean:
 	rm $(BINS)

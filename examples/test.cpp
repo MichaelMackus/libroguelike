@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <time.h>
 
 #define RL_IMPLEMENTATION
 #include "../roguelike.h"

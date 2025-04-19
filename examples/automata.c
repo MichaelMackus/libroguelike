@@ -7,7 +7,7 @@
 #define WIDTH 80
 #define HEIGHT 30
 
-int main()
+int main(void)
 {
     srand(time(0));
 

@@ -30,7 +30,7 @@ static RL_Point player;
 static RL_Point downstair;
 
 // generate a new map
-void generate_map()
+void generate_map(void)
 {
     if (rl_rng_generate(0, 1)) {
         if (rl_mapgen_bsp(&map, RL_MAPGEN_BSP_DEFAULTS) != RL_OK) {
@@ -203,7 +203,11 @@ int main(int argc, char **argv)
                 case KEY_MOUSE:
                     {
                         MEVENT ev;
+#if defined(WIN32) || defined(_WIN32)
+                        if (getmouse() == OK)
+#else
                         if (getmouse(&ev) == OK)
+#endif
                         {
                             // if we have a mouse event & the destination is seen & passable, create a path to the destination
                             RL_Point dest = RL_XY(ev.x, ev.y);
