@@ -608,10 +608,11 @@ bool rl_map_is_wall(const RL_Map *map, unsigned int x, unsigned int y)
 /* checks if target tile is connecting from source (e.g. they can reach it) */
 bool rl_map_is_connecting(const RL_Map *map, unsigned int from_x, unsigned int from_y, unsigned int target_x, unsigned int target_y)
 {
+    int x, y, x2, y2;
+    rl_assert(target_x < INT_MAX && target_y < INT_MAX && from_y < INT_MAX && target_y < INT_MAX);
     /* check that from passable neighbors can connect to target */
-    unsigned int x, y, x2, y2;
-    for (x = from_x - 1; x <= from_x + 1; ++x) {
-        for (y = from_y - 1; y <= from_y + 1; ++y) {
+    for (x = (int)from_x - 1; x <= (int)from_x + 1; ++x) {
+        for (y = (int)from_y - 1; y <= (int)from_y + 1; ++y) {
             if (!rl_map_in_bounds(map, x, y) || !rl_map_is_passable(map, x, y))
                 continue;
             if (rl_map_tile_is(map, x, y, RL_TileDoor))
@@ -620,7 +621,7 @@ bool rl_map_is_connecting(const RL_Map *map, unsigned int from_x, unsigned int f
             for (x2 = x - 1; x2 <= x + 1; ++x2) {
                 for (y2 = y - 1; y2 <= y + 1; ++y2) {
                     if (!rl_map_in_bounds(map, x2, y2)) continue;
-                    if (x2 == target_x && y2 == target_y)
+                    if ((unsigned int) x2 == target_x && (unsigned int) y2 == target_y)
                         return true;
                 }
             }
