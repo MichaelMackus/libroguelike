@@ -116,6 +116,9 @@ int main(int argc, char **argv)
                         case RL_TileDoor:
                             ch = '+';
                             break;
+                        case RL_TileDoorOpen:
+                            printf("=");
+                            break;
                     }
                     // handle player & downstair tiles
                     if (y == player.y && x == player.x) {

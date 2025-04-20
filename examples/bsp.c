@@ -121,6 +121,9 @@ int main(int argc, char **argv)
                 case RL_TileDoor:
                     printf("+");
                     break;
+                case RL_TileDoorOpen:
+                    printf("=");
+                    break;
                 default:
                     printf("?");
                     break;

@@ -63,7 +63,8 @@ typedef enum {
     RL_TileRock = ' ',
     RL_TileRoom = '.',
     RL_TileCorridor = '#',
-    RL_TileDoor = '+'
+    RL_TileDoor = '+',
+    RL_TileDoorOpen = '='
 } RL_Tile;
 typedef struct RL_Map {
     unsigned int width;
@@ -442,9 +443,10 @@ RL_FOV *rl_fov_create(unsigned int width, unsigned int height);
 /* Frees the FOV & internal memory. */
 void rl_fov_destroy(RL_FOV *fov);
 
-/* Function to determine if a tile is within the range of the FOV. */
+/* Function to determine if a tile is within the range of the FOV. Returns true if point is in range. */
 typedef bool (*RL_IsInRangeFun)(unsigned int x, unsigned int y, void *context);
-/* Function to determine if a tile is considered Opaque for FOV calculation. Make sure you do bounds checking that the point is within your map. */
+/* Function to determine if a tile is considered Opaque for FOV calculation. Make sure you do bounds checking that the
+ * point is within your map. Returns true if point is considered "opaque" (i.e. unable to see through). */
 typedef bool (*RL_IsOpaqueFun)(unsigned int x, unsigned int y, void *context);
 /* Function to mark a tile as visible within the FOV. Make sure you do bounds checking that the point is within your map. */
 typedef void (*RL_MarkAsVisibleFun)(unsigned int x, unsigned int y, void *context);
@@ -572,7 +574,8 @@ bool rl_map_is_passable(const RL_Map *map, unsigned int x, unsigned int y)
     if (rl_map_in_bounds(map, x, y)) {
         return map->tiles[y * map->width + x] == RL_TileRoom ||
                map->tiles[y * map->width + x] == RL_TileCorridor ||
-               map->tiles[y * map->width + x] == RL_TileDoor;
+               map->tiles[y * map->width + x] == RL_TileDoor ||
+               map->tiles[y * map->width + x] == RL_TileDoorOpen;
     }
 
     return 0;
@@ -591,7 +594,7 @@ bool rl_map_is_wall(const RL_Map *map, unsigned int x, unsigned int y)
 {
     if (!rl_map_in_bounds(map, x, y))
         return 0;
-    if (!rl_map_is_passable(map, x, y) || rl_map_tile_is(map, x, y, RL_TileDoor)) {
+    if (!rl_map_is_passable(map, x, y) || rl_map_tile_is(map, x, y, RL_TileDoor) || rl_map_tile_is(map, x, y, RL_TileDoorOpen)) {
         return rl_map_is_passable(map, x, y + 1) ||
                rl_map_is_passable(map, x, y - 1) ||
                rl_map_is_passable(map, x + 1, y) ||
@@ -615,7 +618,7 @@ bool rl_map_is_connecting(const RL_Map *map, unsigned int from_x, unsigned int f
         for (y = (int)from_y - 1; y <= (int)from_y + 1; ++y) {
             if (!rl_map_in_bounds(map, x, y) || !rl_map_is_passable(map, x, y))
                 continue;
-            if (rl_map_tile_is(map, x, y, RL_TileDoor))
+            if (rl_map_tile_is(map, x, y, RL_TileDoor) || rl_map_tile_is(map, x, y, RL_TileDoorOpen))
                 continue;
             /* this is a passable neighbor - check its neighbors to see if it can reach target */
             for (x2 = x - 1; x2 <= x + 1; ++x2) {
@@ -1387,7 +1390,7 @@ RL_Status rl_mapgen_maze(RL_Map *map, unsigned int offset_x, unsigned int offset
     /* allocate memory for BFS */
     heap = rl_heap_create(width * height, NULL);
     ps = (RL_MapPoint*) rl_malloc(sizeof(*ps) * map->width * map->height);
-    
+
     rl_assert(ps && heap);
     if (ps == NULL || heap == NULL) {
         return RL_ErrorMemory;
@@ -2278,7 +2281,7 @@ void rl_fov_calculate_recursive(void *map, unsigned int origin_x, unsigned int o
                 }
             }
 
-            isOpaque = !inRange || !opaque_f(tx, ty, map);
+            isOpaque = !inRange || opaque_f(tx, ty, map);
             if(isOpaque)
             {
                 if(wasOpaque == 0) /* if we found a transition from clear to opaque, this sector is done in this column, so */
@@ -2327,7 +2330,11 @@ bool rl_fovmap_opaque_f(unsigned int x, unsigned int y, void *context)
     if (!rl_map_in_bounds(map->map, x, y)) {
         return true;
     }
-    return rl_map_is_passable(map->map, x, y);
+    if (rl_map_tile_is(map->map, x, y, RL_TileDoor)) {
+        /* doors are opaque by default, unless they are open */
+        return true;
+    }
+    return !rl_map_is_passable(map->map, x, y);
 }
 
 #ifndef RL_FOV_DISTANCE_F
