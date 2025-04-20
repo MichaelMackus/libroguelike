@@ -190,6 +190,9 @@ RL_Status rl_mapgen_automata(RL_Map *map, RL_MapgenConfigAutomata config);
 /* Same as above function, but constrains generation according to passed dimensions. */
 RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int x, unsigned int y, unsigned int width, unsigned int height,  const RL_MapgenConfigAutomata *config);
 
+/* Generate map with a random maze (via simplistic BFS). Fully connected. */
+RL_Status rl_mapgen_maze(RL_Map *map, unsigned int x, unsigned int y, unsigned int width, unsigned int height);
+
 /* Connect map via corridors using the supplied BSP graph. */
 RL_Status rl_mapgen_connect_corridors(RL_Map *map, RL_BSP *root, bool draw_doors, RL_MapgenCorridorConnection connection_algorithm);
 
@@ -1074,11 +1077,14 @@ RL_Status rl_mapgen_bsp_ex(RL_Map *map, RL_BSP *root, const RL_MapgenConfigBSP *
 
     rl_assert(map);
     rl_assert(root);
+    rl_assert(root->width > 0 && root->height > 0);
+    rl_assert(root->x < root->width && root->y < root->height);
+    rl_assert(config);
     rl_assert(config->room_min_width > 0 && config->room_max_width >= config->room_min_width && config->room_min_height > 0 && config->room_max_height >= config->room_min_height);
     rl_assert(config->room_max_width <= map->width && config->room_max_height <= map->height);
     rl_assert(config->max_splits > 0);
 
-    if (map == NULL || root == NULL) {
+    if (map == NULL || root == NULL || config == NULL) {
         return RL_ErrorNullParameter;
     }
 
@@ -1160,15 +1166,20 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
 {
     unsigned int i, x, y;
 
-    rl_assert(map);
+    rl_assert(map && config);
+    rl_assert(width > 0 && height > 0);
     rl_assert(offset_x < width && offset_y < height);
     rl_assert(offset_x < map->width && offset_y < map->height);
     rl_assert(offset_x + width <= map->width && offset_y + height <= map->height);
     rl_assert(config->chance_cell_initialized > 0 && config->chance_cell_initialized <= 100);
 
+    if (map == NULL || config == NULL) {
+        return RL_ErrorNullParameter;
+    }
+
     /* initialize map */
-    for (x=offset_x; x<width; ++x) {
-        for (y=offset_y; y<height; ++y) {
+    for (x=offset_x; x<offset_x + width; ++x) {
+        for (y=offset_y; y<offset_y + height; ++y) {
             unsigned int r = rl_rng_generate(1, 100);
             if (r <= config->chance_cell_initialized) {
                 map->tiles[x + y*map->width] = RL_TileRock;
@@ -1180,8 +1191,8 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
 
     /* cellular automata algorithm */
     for (i=config->max_iterations; i>0; i--) {
-        for (x=offset_x; x<width; ++x) {
-            for (y=offset_y; y<height; ++y) {
+        for (x=offset_x; x<offset_x + width; ++x) {
+            for (y=offset_y; y<offset_y + height; ++y) {
                 unsigned int alive_neighbors = rl_mapgen_automata_alive_neighbors(map, x, y);
                 if (!rl_mapgen_automata_is_alive(map, x, y) && alive_neighbors >= config->birth_threshold) {
                     /* cell isn't alive but has enough alive neighbors to be born */
@@ -1205,8 +1216,8 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
 
         RL_Heap *heap = rl_heap_create(1, NULL);
         /* fill floodfills array with a floodfill of each connected space */
-        for (x=offset_x; x<width; ++x) {
-            for (y=offset_y; y<height; ++y) {
+        for (x=offset_x; x<offset_x + width; ++x) {
+            for (y=offset_y; y<offset_y + height; ++y) {
                 int i;
                 bool is_scored = false;
                 if (rl_map_is_passable(map, x, y)) {
@@ -1298,8 +1309,8 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
 #if RL_ENABLE_PATHFINDING
         RL_Graph *floodfill = rl_graph_floodfill_largest_area(map);
         if (floodfill) {
-            for (x=offset_x; x<width; ++x) {
-                for (y=offset_y; y<height; ++y) {
+            for (x=offset_x; x<offset_x + width; ++x) {
+                for (y=offset_y; y<offset_y + height; ++y) {
                     if (!rl_graph_is_scored(floodfill, RL_XY(x, y))) {
                         map->tiles[x + y*map->width] = RL_TileRock;
                     }
@@ -1311,6 +1322,116 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
         return RL_ErrorMapgenInvalidConfig;
 #endif
     }
+
+    return RL_OK;
+}
+
+typedef struct {
+    int x, y;
+} RL_MapPoint;
+
+int rl_mapgen_maze_unvisited_neighbors(RL_MapPoint ps[4], const RL_Map *map, int x, int y, int sx, int mx, int sy, int my)
+{
+    RL_MapPoint neighbors[4];
+    int i, count = 0;
+    neighbors[0].x = x - 2;
+    neighbors[0].y = y;
+    neighbors[1].x = x + 2;
+    neighbors[1].y = y;
+    neighbors[2].x = x;
+    neighbors[2].y = y - 2;
+    neighbors[3].x = x;
+    neighbors[3].y = y + 2;
+    for (i = 0; i<4; ++i) {
+        int x = neighbors[i].x;
+        int y = neighbors[i].y;
+        if (x < sx || x >= mx || y < sy || y >= my) continue;
+        if (map->tiles[x + y*map->width] == RL_TileRock) {
+            /* matching neighbor */
+            ps[count].x = x;
+            ps[count].y = y;
+            count ++;
+        }
+    }
+
+    return count;
+}
+
+RL_Status rl_mapgen_maze(RL_Map *map, unsigned int offset_x, unsigned int offset_y, unsigned int width, unsigned int height)
+{
+    int x, y;
+    RL_MapPoint *ps;
+    RL_MapPoint *p;
+    RL_Heap *heap;
+
+    rl_assert(map);
+    rl_assert(width > 0 && height > 0);
+    rl_assert(offset_x < width && offset_y < height);
+    rl_assert(offset_x < map->width && offset_y < map->height);
+    rl_assert(offset_x + width <= map->width && offset_y + height <= map->height);
+    rl_assert(offset_x + width < INT_MAX);
+    rl_assert(offset_y + height < INT_MAX);
+
+    if (map == NULL) {
+        return RL_ErrorNullParameter;
+    }
+
+    /* reset all tiles within range to rock */
+    for (x = (int)offset_x; x < (int)offset_x + (int)width; ++x) {
+        for (y = (int)offset_y; y < (int)offset_y + (int)height; ++y) {
+            map->tiles[x + y*map->width] = RL_TileRock;
+        }
+    }
+
+    /* allocate memory for BFS */
+    heap = rl_heap_create(width * height, NULL);
+    ps = (RL_MapPoint*) rl_malloc(sizeof(*ps) * map->width * map->height);
+    
+    rl_assert(ps && heap);
+    if (ps == NULL || heap == NULL) {
+        return RL_ErrorMemory;
+    }
+
+    /* choose random starting tile */
+    x = rl_rng_generate(offset_x, offset_x + width - 1);
+    y = rl_rng_generate(offset_y, offset_y + height - 1);
+    map->tiles[x + y*map->width] = RL_TileCorridor;
+    p = &ps[x + y*map->width];
+    p->x = x;
+    p->y = y;
+    rl_heap_insert(heap, p);
+    while ((p = (RL_MapPoint*) rl_heap_pop(heap)) != NULL) {
+        /* check unvisited neighbors (+2 so we have enough space for walls) */
+        RL_MapPoint neighbors[4];
+        RL_MapPoint *p2;
+        int wall_x, wall_y, i;
+        int neighbors_count = rl_mapgen_maze_unvisited_neighbors(neighbors, map, p->x, p->y, offset_x, offset_x + width, offset_y, offset_y + height);
+        if (neighbors_count == 0) continue;
+        /* choose one unvisitied neighbor */
+        i = rl_rng_generate(0, neighbors_count - 1);
+        x = neighbors[i].x;
+        y = neighbors[i].y;
+        rl_assert(rl_map_in_bounds(map, x, y));
+        rl_assert(map->tiles[x + y*map->width] == RL_TileRock);
+        /* unvisited neighbor - remove wall and push to heap */
+        wall_x = x;
+        wall_y = y;
+        if (x < p->x) wall_x = x + 1;
+        if (x > p->x) wall_x = x - 1;
+        if (y < p->y) wall_y = y + 1;
+        if (y > p->y) wall_y = y - 1;
+        map->tiles[wall_x + wall_y*map->width] = RL_TileCorridor;
+        map->tiles[x + y*map->width] = RL_TileCorridor;
+        p2 = &ps[x + y*map->width];
+        p2->x = x;
+        p2->y = y;
+        rl_heap_insert(heap, p);
+        rl_heap_insert(heap, p2);
+    }
+
+    /* free memory for BFS */
+    rl_heap_destroy(heap);
+    rl_free(ps);
 
     return RL_OK;
 }
