@@ -1160,7 +1160,10 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
 {
     unsigned int i, x, y;
 
+    rl_assert(map);
     rl_assert(offset_x < width && offset_y < height);
+    rl_assert(offset_x < map->width && offset_y < map->height);
+    rl_assert(offset_x + width <= map->width && offset_y + height <= map->height);
     rl_assert(config->chance_cell_initialized > 0 && config->chance_cell_initialized <= 100);
 
     /* initialize map */
