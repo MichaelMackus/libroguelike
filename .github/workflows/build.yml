@@ -23,3 +23,15 @@ jobs:
    - name: build application with cc65 (commodore 64 compiler)
      run: cl65 -DRL_ENABLE_FOV=0 -DRL_MAPGEN_BSP_RANDOMISE_ROOM_LOC=0 examples/c89.c
      shell: bash
+   - name: valgrind
+     run:   |
+            examples=(automata bsp dijkstra floodfill heap line maze minimal path)
+            for f in "${examples[@]}"; do
+              if ! ( ./valgrind ./examples/$f ); then
+                exit 1
+              fi
+              if ( grep ' lost: ' valgrind-out.txt  | grep -v 'lost: 0 bytes' ); then
+                exit 2
+              fi
+            done
+     shell: bash
