@@ -946,7 +946,7 @@ RL_Status rl_bsp_recursive_split(RL_BSP *root, unsigned int min_width, unsigned 
     height = root->height;
 
     /* determine split dir & split */
-    if (rl_rng_generate(0, 1)) {
+    if (RL_RNG_F(0, 1)) {
         if (width < min_width*2)
             dir = RL_SplitVertically;
         else
@@ -1081,7 +1081,7 @@ RL_BSP* rl_bsp_random_leaf(const RL_BSP *root)
 
     node = root;
     while (!rl_bsp_is_leaf(node)) {
-        if (rl_rng_generate(0, 1)) {
+        if (RL_RNG_F(0, 1)) {
             node = node->left;
         } else {
             node = node->right;
@@ -1146,15 +1146,15 @@ static void rl_map_bsp_generate_rooms(RL_BSP *node, RL_Map *map, unsigned int ro
         if (rl_bsp_is_leaf(node->left)) {
             unsigned int room_width, room_height, room_x, room_y;
             RL_BSP *leaf = node->left;
-            room_width = rl_rng_generate(room_min_width, room_max_width);
+            room_width = RL_RNG_F(room_min_width, room_max_width);
             if (room_width + room_padding*2 > leaf->width)
                 room_width = leaf->width - room_padding*2;
-            room_height = rl_rng_generate(room_min_height, room_max_height);
+            room_height = RL_RNG_F(room_min_height, room_max_height);
             if (room_height + room_padding*2 > leaf->height)
                 room_height = leaf->height - room_padding*2;
 #if(RL_MAPGEN_BSP_RANDOMISE_ROOM_LOC)
-            room_x = rl_rng_generate(leaf->x + room_padding, leaf->x + leaf->width - room_width - room_padding);
-            room_y = rl_rng_generate(leaf->y + room_padding, leaf->y + leaf->height - room_height - room_padding);
+            room_x = RL_RNG_F(leaf->x + room_padding, leaf->x + leaf->width - room_width - room_padding);
+            room_y = RL_RNG_F(leaf->y + room_padding, leaf->y + leaf->height - room_height - room_padding);
 #else
             room_x = leaf->x + leaf->width/2 - room_width/2 - room_padding/2;
             room_y = leaf->y + leaf->height/2 - room_height/2 - room_padding/2;
@@ -1169,15 +1169,15 @@ static void rl_map_bsp_generate_rooms(RL_BSP *node, RL_Map *map, unsigned int ro
         if (rl_bsp_is_leaf(node->left)) {
             unsigned int room_width, room_height, room_x, room_y;
             RL_BSP *leaf = node->right;
-            room_width = rl_rng_generate(room_min_width, room_max_width);
+            room_width = RL_RNG_F(room_min_width, room_max_width);
             if (room_width + room_padding*2 > leaf->width)
                 room_width = leaf->width - room_padding*2;
-            room_height = rl_rng_generate(room_min_height, room_max_height);
+            room_height = RL_RNG_F(room_min_height, room_max_height);
             if (room_height + room_padding*2 > leaf->height)
                 room_height = leaf->height - room_padding*2;
 #if(RL_MAPGEN_BSP_RANDOMISE_ROOM_LOC)
-            room_x = rl_rng_generate(leaf->x + room_padding, leaf->x + leaf->width - room_width - room_padding);
-            room_y = rl_rng_generate(leaf->y + room_padding, leaf->y + leaf->height - room_height - room_padding);
+            room_x = RL_RNG_F(leaf->x + room_padding, leaf->x + leaf->width - room_width - room_padding);
+            room_y = RL_RNG_F(leaf->y + room_padding, leaf->y + leaf->height - room_height - room_padding);
 #else
             room_x = leaf->x + leaf->width/2 - room_width/2 - room_padding/2;
             room_y = leaf->y + leaf->height/2 - room_height/2 - room_padding/2;
@@ -1315,7 +1315,7 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
     /* initialize map */
     for (x=offset_x; x<offset_x + width; ++x) {
         for (y=offset_y; y<offset_y + height; ++y) {
-            unsigned int r = rl_rng_generate(1, 100);
+            unsigned int r = RL_RNG_F(1, 100);
             if (r <= config->chance_cell_initialized) {
                 map->tiles[x + y*map->width] = RL_TileRock;
             } else {
@@ -1384,7 +1384,7 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
                 floodfill = (RL_Graph*) heap->heap[i];
                 /* find a random target node to connect to */
                 while (j == i) {
-                    j = rl_rng_generate(0, heap->len - 1);
+                    j = RL_RNG_F(0, heap->len - 1);
                 }
                 floodfill_target = (RL_Graph*) heap->heap[j];
                 RL_ASSERT(floodfill && floodfill_target);
@@ -1537,8 +1537,8 @@ RL_Status rl_mapgen_maze_ex(RL_Map *map, unsigned int offset_x, unsigned int off
     }
 
     /* choose random starting tile */
-    x = rl_rng_generate(offset_x, offset_x + width - 1);
-    y = rl_rng_generate(offset_y, offset_y + height - 1);
+    x = RL_RNG_F(offset_x, offset_x + width - 1);
+    y = RL_RNG_F(offset_y, offset_y + height - 1);
     map->tiles[x + y*map->width] = RL_TileCorridor;
     p = &ps[x + y*map->width];
     p->x = x;
@@ -1552,7 +1552,7 @@ RL_Status rl_mapgen_maze_ex(RL_Map *map, unsigned int offset_x, unsigned int off
         int neighbors_count = rl_mapgen_maze_unvisited_neighbors(neighbors, map, p->x, p->y, offset_x, offset_x + width, offset_y, offset_y + height);
         if (neighbors_count == 0) continue;
         /* choose one unvisitied neighbor */
-        i = rl_rng_generate(0, neighbors_count - 1);
+        i = RL_RNG_F(0, neighbors_count - 1);
         x = neighbors[i].x;
         y = neighbors[i].y;
         RL_ASSERT(rl_map_in_bounds(map, x, y));
