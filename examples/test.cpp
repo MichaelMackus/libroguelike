@@ -40,6 +40,7 @@ int main()
                     printf("#");
                     break;
                 case RL_TileDoor:
+                case RL_TileDoorOpen:
                     printf("+");
                     break;
             }

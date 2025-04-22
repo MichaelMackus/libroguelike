@@ -14,11 +14,12 @@ int main(void)
 
     RL_Map *map = rl_map_create(WIDTH, HEIGHT);
     RL_MapgenConfigBSP config = RL_MAPGEN_BSP_DEFAULTS;
+    RL_BSP *bsp = rl_bsp_create(WIDTH, HEIGHT);
     config.max_splits = 3;
     config.draw_corridors = RL_ConnectSimple;
 
     srand(time(0));
-    if (rl_mapgen_bsp(map, config) != RL_OK) {
+    if (rl_mapgen_bsp_ex(map, bsp, &config) != RL_OK) {
         fprintf(stderr, "Error while generating map!\n");
         return 1;
     }

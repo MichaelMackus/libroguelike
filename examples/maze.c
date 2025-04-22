@@ -7,12 +7,19 @@
 #define WIDTH 80
 #define HEIGHT 30
 
-int main(void)
+int main(int argc, const char **argv)
 {
-    srand(time(0));
+    unsigned long seed = time(0);
+
+    if (argc > 1) {
+        seed = atol(argv[1]);
+    }
+    printf("Seed: %ld\n", seed);
+    srand(seed);
+    srand(seed);
 
     RL_Map *map = rl_map_create(WIDTH, HEIGHT);
-    if (rl_mapgen_maze(map, 1, 1, WIDTH - 2, HEIGHT - 2) != RL_OK) {
+    if (rl_mapgen_maze(map) != RL_OK) {
         fprintf(stderr, "Error during mapgen\n");
         return 1;
     }
@@ -50,7 +57,7 @@ int main(void)
                 else if (wall & RL_WallToSouth || wall & RL_WallToNorth)
                     ch = '|';
                 else if (wall)
-                    ch = '-';
+                    ch = '0';
                 else
                     ch = ' ';
                 printf("%c", ch);

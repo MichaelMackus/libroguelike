@@ -41,11 +41,11 @@ int main()
 
 ## Examples
 
-See the examples folder - [examples/simple.c](./examples/simple.c) contains a
-simplified example starting with a predetermined map,
-[examples/bsp.c](./examples/bsp.c) is an example with BSP dungeon generation,
-and [examples/player_movement.c](./examples/player_movement.c) is a more
-detailed example including FOV and basic player movement.
+See the examples folder - [maze.c](./examples/maze.c),
+[bsp.c](./examples/bsp.c), and [automata.c](./examples/automata.c) all contain
+basic dungeon generation. [dungeon.c](./examples/dungeon.c) and
+[town_sewers.c](./examples/town_sewers.c) are more detailed examples including
+FOV and basic player movement.
 
 Note that the interface is considered unstable. This is in its very early
 stages, but should be usable as-is. I'm currently using this to develop

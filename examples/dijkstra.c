@@ -20,7 +20,7 @@ int main(void)
     }
 
     RL_Point start = RL_XY(rl_rng_generate(0, map->width - 1), rl_rng_generate(0, map->height - 1));
-    RL_Graph *path_map = rl_dijkstra_create(map, start, rl_distance_manhattan, rl_map_is_passable);
+    RL_Graph *path_map = rl_dijkstra_create(map, start, rl_distance_manhattan);
     printf("Start: %f,%f\n", start.x, start.y);
 
     for (unsigned int y=0; y < map->height; y++) {

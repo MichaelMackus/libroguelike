@@ -20,6 +20,113 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
+ *
+ *
+ * roguelike.h
+ *
+ *
+ * A single header library for tile-based games. Most features have a
+ * "rl_*_create" and a "rl_*_destroy" function. The create function allocates
+ * memory and returns a pointer that is assumed to be freed with rl_*_destroy.
+ * You can avoid using malloc & free by defining RL_MALLOC (and optionally
+ * RL_CALLOC and RL_REALLOC) and RL_FREE, or simply manage the memory yourself.
+ *
+ * Make sure to define RL_IMPLEMENTATION once and only once before including
+ * "roguelike.h" to compile the library.
+ *
+ * The primary feature of this library deals with the tile-based maps and map
+ * generation. The functions are prefixed with rl_map and rl_mapgen.
+ *
+ * To generate a map, create the map via rl_map_create then call the function
+ * with the algorithm you wish to use for mapgen. For example:
+ *
+ *   RL_Map *map = rl_map_create(80, 25);
+ *   if (rl_mapgen_bsp(map, RL_MAPGEN_BSP_DEFAULTS) != RL_OK) {
+ *     printf("Error occurred during mapgen!\n");
+ *   }
+ *   ....
+ *   rl_map_destroy(map); // frees the map pointer & internal data
+ *
+ * The rl_bsp methods correspond to a BSP graph containing data for rectangles.
+ * Note that the rl_bsp_split function does allocate memory for the split and
+ * assigns the new left & right nodes to the BSP tree (this data is freed with
+ * rl_bsp_destroy).
+ *
+ * There is also functionality for a simple min heap (or priority queue).
+ * These functions are prefixed with rl_heap. To use these you need to create
+ * a heap with rl_heap_create then insert items with rl_heap_insert. The heap
+ * does not free or allocate memory for items you insert into the heap.
+ *
+ *  RL_Heap *q = rl_heap_create(1, NULL); // NULL comparison function acts as dynamic array
+ *  int val = 5;
+ *  rl_heap_insert(q, &val);
+ *  ....
+ *  int r;
+ *  while ((r = rl_heap_pop(eq))) { ... }
+ *  rl_heap_destroy(q);
+ *
+ * There is also a set of FOV functions - these functions use a simple
+ * shadowcasting algorithm to implement FOV. Create the RL_FOV struct with
+ * rl_fov_create (making sure to free it with rl_fov_destroy), and each time
+ * you want to "update" the FOV you should call "rl_fov_calculate" or
+ * "rl_fov_calculate_ex".
+ *
+ *  RL_FOV *fov = rl_fov_create(80, 25);
+ *  for (;;) { // gameloop
+ *      rl_fov_calculate(fov, map, player_x, player_y, 8); // last arg is FOV radius
+ *      ... // draw map, handle input, etc.
+ *  }
+ *  rl_fov_destroy(fov);
+ *
+ * There is also a set of pathfinding functions - these functions primarily
+ * create and manage Dijkstra graphs for pathfinding. These functions are
+ * prefixed with rl_path, rl_dijkstra, and rl_graph. Paths should be "walked"
+ * with "rl_path_walk" which frees each part of the path passed, returning the
+ * next part of the path; or you can alternatively call "rl_path_destroy".
+ *
+ *  RL_Path *path = rl_path_create(map, RL_XY(0,0), RL_XY(20,20), rl_distance_euclidian, rl_map_is_passable);
+ *  while ((path = rl_path_walk(path))) { ...  } // frees the path
+ *
+ * Dijkstra graphs can be created & scored with rl_dijkstra_create or manually
+ * scored via rl_dijkstra_score* functions. After the graph is scored the
+ * graph is can be walked by finding a "start" node in the graph, and
+ * recursively walking the graph by choosing the lowest scored neighbor. If a
+ * RL_GraphNode has a score of FLT_MAX it has not been scored.
+ *
+ *  // Typically you provide destination for the initial Dijkstra graph
+ *  RL_Graph *graph = rl_dijkstra_create(map, dest, rl_distance_manhattan, rl_map_is_passable);
+ *  // Then find start point in graph
+ *  RL_GraphNode *node = rl_graph_node(graph, start);
+ *  // Then, you "roll downhill" from the start point
+ *  if (node != NULL) {
+ *    RL_GraphNode *lowest_neighbor = rl_graph_lowest_scored_neighbor(graph, node);
+ *    // The next point in the path is lowest_neighbor->point
+ *    if (lowest_neighbor) move_player(lowest_neighbor->point);
+ *    ...
+ *  }
+ *  rl_graph_destroy(graph);
+ *
+ *
+ * Preprocessor definitions (define these before including roguelike.h to customize internals):
+ *
+ *
+ *  RL_IMPLEMENTATION                 Define this to compile the library - should only be defined once in one file
+ *  RL_MAX_NEIGHBOR_COUNT             Maximum neighbor count for Dijkstra graphs (defaults to 8). Note this is needed in the function definitions - if you override this, you'll have to define it everywhere you include roguelike.h (just make a wrapper).
+ *  RL_FOV_SYMMETRIC                  Set this to 0 to disable symmetric FOV (defaults to 1)
+ *  RL_MAX_RECURSION                  Maximum recursion (defaults to 100). This is used in FOV to limit recursion when fov_radius is large or -1 (unlimited).
+ *  RL_MAPGEN_BSP_RANDOMISE_ROOM_LOC  Set this to 0 to disable randomizing room locations within bsp (used in rl_mapgen_bsp - defaults to 1)
+ *  RL_ENABLE_PATHFINDING             Set this to 0 to disable pathfinding functionality (defaults to 1)
+ *  RL_ENABLE_FOV                     Set this to 0 to disable field of view functionality (defaults to 1)
+ *  RL_PASSABLE_F                     Set this to your default passable function (defaults to rl_map_is_passable).
+ *  RL_OPAQUE_F                       Set this to your default opaque function (defaults to rl_map_is_opaque).
+ *  RL_WALL_F                         Set this to your default is_wall function (defaults to rl_map_is_wall).
+ *  RL_FOV_DISTANCE_F                 Set this to your default FOV distance function (defaults to rl_distance_euclidian).
+ *  RL_RNG_F                          Set this to your default RNG generation function (defaults to rl_rng_generate).
+ *  RL_ASSERT                         Define this to override the assert function used by the library (defaults to "assert")
+ *  RL_MALLOC                         Define this to override the malloc function used by the library (defaults to "malloc")
+ *  RL_CALLOC                         Define this to override the calloc function used by the library (defaults to "calloc")
+ *  RL_REALLOC                        Define this to override the realloc function used by the library, used in rl_heap_* (defaults to "realloc")
+ *  RL_FREE                           Define this to override the free function used by the library (defaults to "free")
  */
 
 #ifdef __cplusplus
@@ -91,14 +198,6 @@ typedef enum {
 
 /**
  * Random map generation
- *
- * To generate a map, create the map via rl_map_create then call the function with the algorithm you wish to use for
- * mapgen. For example:
- *
- *   RL_Map *map = rl_map_create(80, 25);
- *   if (rl_mapgen_bsp(map, RL_MAPGEN_BSP_DEFAULTS) != RL_OK) {
- *     printf("Error occurred during mapgen!\n");
- *   }
  */
 
 /* Creates an empty map. Make sure to call rl_map_destroy to clear memory. */
@@ -191,8 +290,11 @@ RL_Status rl_mapgen_automata(RL_Map *map, RL_MapgenConfigAutomata config);
 /* Same as above function, but constrains generation according to passed dimensions. */
 RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int x, unsigned int y, unsigned int width, unsigned int height,  const RL_MapgenConfigAutomata *config);
 
-/* Generate map with a random maze (via simplistic BFS). Fully connected. */
-RL_Status rl_mapgen_maze(RL_Map *map, unsigned int x, unsigned int y, unsigned int width, unsigned int height);
+/* Generate map with a random maze (via simplistic BFS). Tiles are carved with RL_TileCorridor. Fully connected. */
+RL_Status rl_mapgen_maze(RL_Map *map);
+
+/* Generate map with a random maze (via simplistic BFS). Tiles are carved with RL_TileCorridor. Fully connected. */
+RL_Status rl_mapgen_maze_ex(RL_Map *map, unsigned int x, unsigned int y, unsigned int width, unsigned int height);
 
 /* Connect map via corridors using the supplied BSP graph. */
 RL_Status rl_mapgen_connect_corridors(RL_Map *map, RL_BSP *root, bool draw_doors, RL_MapgenCorridorConnection connection_algorithm);
@@ -206,6 +308,9 @@ bool rl_map_in_bounds(const RL_Map *map, unsigned int x, unsigned int y);
 
 /* Checks if a tile is passable. */
 bool rl_map_is_passable(const RL_Map *map, unsigned int x, unsigned int y);
+
+/* Checks if a tile is opaque (for FOV calculations). */
+bool rl_map_is_opaque(const RL_Map *map, unsigned int x, unsigned int y);
 
 /* Get tile at point */
 RL_Byte *rl_map_tile(const RL_Map *map, unsigned int x, unsigned int y);
@@ -264,7 +369,7 @@ RL_Heap *rl_heap_create(int capacity, int (*comparison_f)(const void *heap_item_
 void rl_heap_destroy(RL_Heap *h);
 
 /* Return the length of the heap items */
-int rl_heap_length(RL_Heap *h);
+int rl_heap_length(const RL_Heap *h);
 
 /* Insert item into the heap. This will resize the heap if necessary. */
 bool rl_heap_insert(RL_Heap *h, void *item);
@@ -296,20 +401,20 @@ void rl_bsp_split(RL_BSP *node, unsigned int position, RL_SplitDirection directi
 RL_Status rl_bsp_recursive_split(RL_BSP *root, unsigned int min_width, unsigned int min_height, unsigned int max_recursion);
 
 /* Returns 1 if the node is a leaf node. */
-bool rl_bsp_is_leaf(RL_BSP *node);
+bool rl_bsp_is_leaf(const RL_BSP *node);
 
 /* Return sibling node. Returns NULL if there is no parent (i.e. for the root */
 /* node). */
-RL_BSP *rl_bsp_sibling(RL_BSP *node);
+RL_BSP *rl_bsp_sibling(const RL_BSP *node);
 
 /* Returns amount of leaves in tree. */
-size_t rl_bsp_leaf_count(RL_BSP *root);
+size_t rl_bsp_leaf_count(const RL_BSP *root);
 
 /* Return the next leaf node to the right if it exists. */
-RL_BSP *rl_bsp_next_leaf(RL_BSP *node);
+RL_BSP *rl_bsp_next_leaf(const RL_BSP *node);
 
 /* Returns a random leaf node beneath root */
-RL_BSP* rl_bsp_random_leaf(RL_BSP *root);
+RL_BSP* rl_bsp_random_leaf(const RL_BSP *root);
 
 /**
  * Pathfinding - disable with #define RL_ENABLE_PATHFINDING 0
@@ -362,14 +467,14 @@ typedef bool (*RL_PassableFun)(const RL_Map *map, unsigned int x, unsigned int y
 
 /* Custom score function for pathfinding - most users won't need this, but it gives flexibility in weighting the
  * Dijkstra graph. Note that Dijkstra expects you to add the current node's score to the newly calculated score. */
-typedef float (*RL_ScoreFun)(RL_GraphNode *current, RL_GraphNode *neighbor, void *context);
+typedef float (*RL_ScoreFun)(const RL_GraphNode *current, const RL_GraphNode *neighbor, void *context);
 
 /* Generates a line starting at from ending at to. Each path in the line will be incremented by step. */
 RL_Path *rl_line_create(RL_Point from, RL_Point to, float step);
 
 /* Find a path between start and end via Dijkstra algorithm. Make sure to call rl_path_destroy when done with path.
  * Pass NULL to distance_f to use rough approximation for euclidian. */
-RL_Path *rl_path_create(const RL_Map *map, RL_Point start, RL_Point end, RL_DistanceFun distance_f, RL_PassableFun passable_f);
+RL_Path *rl_path_create(const RL_Map *map, RL_Point start, RL_Point end, RL_DistanceFun distance_f);
 
 /* Find a path between start and end via the scored Dijkstra graph. Make sure to call rl_path_destroy when done with path (or
  * use rl_path_walk). */
@@ -382,8 +487,7 @@ RL_Path *rl_path_walk(RL_Path *path);
 /* Frees the path & all linked nodes. */
 void rl_path_destroy(RL_Path *path);
 
-/* Dijkstra pathfinding algorithm. Pass NULL to distance_f to use rough approximation for euclidian.  Pass NULL to
- * passable_f to pass through impassable tiles, otherwise pass rl_map_is_passable for the default.
+/* Dijkstra pathfinding algorithm. Pass NULL to distance_f to use rough approximation for euclidian.
  *
  * You can use Dijkstra maps for pathfinding, simple AI, and much more. For example, by setting the player point to
  * "start" then you can pick the highest scored tile in the map and set that as the new "start" point. As with all
@@ -393,8 +497,7 @@ void rl_path_destroy(RL_Path *path);
  * Make sure to destroy the resulting RL_Graph with rl_graph_destroy. */
 RL_Graph *rl_dijkstra_create(const RL_Map *map,
                             RL_Point start,
-                            RL_DistanceFun distance_f,
-                            RL_PassableFun passable_f);
+                            RL_DistanceFun distance_f);
 
 /* Dijkstra pathfinding algorithm. Uses RL_Graph so that your code doesn't need to rely on RL_Map. Each node's
  * distance should equal FLT_MAX in the resulting graph if it is impassable. */
@@ -410,7 +513,10 @@ void rl_dijkstra_score_ex(RL_Graph *graph, RL_Point start, RL_ScoreFun score_f, 
 RL_Graph *rl_graph_floodfill_largest_area(const RL_Map *map);
 
 /* Create an unscored graph based on the 2d map. Make sure to call rl_graph_destroy when finished. */
-RL_Graph *rl_graph_create(const RL_Map *map, RL_PassableFun passable_f, bool allow_diagonal_neighbors);
+RL_Graph *rl_graph_create(const RL_Map *map);
+
+/* Create an unscored graph based on the 2d map. Make sure to call rl_graph_destroy when finished. */
+RL_Graph *rl_graph_create_ex(const RL_Map *map, RL_PassableFun passable_f, bool allow_diagonal_neighbors);
 
 /* Frees the graph & internal memory. */
 void rl_graph_destroy(RL_Graph *graph);
@@ -418,8 +524,12 @@ void rl_graph_destroy(RL_Graph *graph);
 /* Checks if coordinate is scored in graph (e.g. its score is less than FLT_MAX). */
 bool rl_graph_is_scored(const RL_Graph *graph, RL_Point point);
 
-/* Returns the node of a point within a graph if it exists */
-const RL_GraphNode *rl_graph_node(const RL_Graph *graph, RL_Point point);
+/* Returns the node of a point within a graph if it exists. */
+RL_GraphNode *rl_graph_node(const RL_Graph *graph, RL_Point point);
+
+/* Returns the lowest scored neighbor within a graph if it exists - returns NULL if the lowest scored neighbor is scored
+ * with FLT_MAX (meaning it is unscored). */
+RL_GraphNode *rl_graph_lowest_scored_neighbor(const RL_Graph *graph, const RL_GraphNode *node);
 
 /**
  * FOV - disable with #define RL_ENABLE_FOV 0
@@ -474,7 +584,7 @@ bool rl_fov_is_seen(const RL_FOV *map, unsigned int x, unsigned int y);
  * Random number generation
  */
 
-/* Define RL_RNG_CUSTOM to provide your own function body for rl_rng_generate. */
+/* Default implementation of RNG using standard library. */
 unsigned int rl_rng_generate(unsigned int min, unsigned int max);
 
 #ifdef RL_IMPLEMENTATION
@@ -507,51 +617,62 @@ unsigned int rl_rng_generate(unsigned int min, unsigned int max);
 #define RL_ENABLE_FOV 1
 #endif
 
-#if RL_ENABLE_PATHFINDING
-#include <float.h>
-#include <math.h>
+#ifndef RL_PASSABLE_F
+#define RL_PASSABLE_F rl_map_is_passable
+#endif
+#ifndef RL_OPAQUE_F
+#define RL_OPAQUE_F rl_map_is_opaque
+#endif
+#ifndef RL_WALL_F
+#define RL_WALL_F rl_map_is_wall
+#endif
+#ifndef RL_FOV_DISTANCE_F
+#define RL_FOV_DISTANCE_F rl_distance_euclidian
+#endif
+#ifndef RL_RNG_F
+#define RL_RNG_F rl_rng_generate
+#endif
+#ifndef RL_ASSERT
+#include <assert.h>
+#define RL_ASSERT(expr)		(assert(expr));
+#endif
+#ifndef RL_MALLOC
+#define RL_MALLOC malloc
+#endif
+#ifndef RL_CALLOC
+#define RL_CALLOC calloc
+#endif
+#ifndef RL_REALLOC
+#define RL_REALLOC realloc
+#endif
+#ifndef RL_FREE
+#define RL_FREE free
 #endif
 
 #define RL_UNUSED(x) (void)x
 
-#ifndef rl_assert
-#include <assert.h>
-#define rl_assert(expr)		(assert(expr));
-#endif
-
-#ifndef rl_malloc
-#define rl_malloc malloc
-#endif
-
-#ifndef rl_calloc
-#define rl_calloc calloc
-#endif
-
-#ifndef rl_realloc
-#define rl_realloc realloc
-#endif
-
-#ifndef rl_free
-#define rl_free free
+#if RL_ENABLE_PATHFINDING
+#include <float.h>
+#include <math.h>
 #endif
 
 RL_Map *rl_map_create(unsigned int width, unsigned int height)
 {
     RL_Map *map;
     unsigned char *memory;
-    rl_assert(width*height < UINT_MAX);
-    rl_assert(width > 0 && height > 0);
+    RL_ASSERT(width*height < UINT_MAX);
+    RL_ASSERT(width > 0 && height > 0);
     map = NULL;
     /* allocate all the memory we need at once */
-    memory = (unsigned char*) rl_calloc(sizeof(*map) + sizeof(*map->tiles)*width*height, 1);
-    rl_assert(memory);
+    memory = (unsigned char*) RL_MALLOC(sizeof(*map) + sizeof(*map->tiles)*width*height);
+    RL_ASSERT(memory);
     if (memory == NULL) return NULL;
     map = (RL_Map*) memory;
-    rl_assert(map);
+    RL_ASSERT(map);
     map->width = width;
     map->height = height;
     map->tiles = (RL_Byte*) (memory + sizeof(*map));
-    rl_assert(map->tiles);
+    RL_ASSERT(map->tiles);
     memset(map->tiles, RL_TileRock, sizeof(*map->tiles)*map->width*map->height);
 
     return map;
@@ -560,7 +681,7 @@ RL_Map *rl_map_create(unsigned int width, unsigned int height)
 void rl_map_destroy(RL_Map *map)
 {
     if (map) {
-        rl_free(map);
+        RL_FREE(map);
     }
 }
 
@@ -581,6 +702,18 @@ bool rl_map_is_passable(const RL_Map *map, unsigned int x, unsigned int y)
     return 0;
 }
 
+bool rl_map_is_opaque(const RL_Map *map, unsigned int x, unsigned int y)
+{
+    if (!rl_map_in_bounds(map, x, y)) {
+        return true;
+    }
+    if (rl_map_tile_is(map, x, y, RL_TileDoor)) {
+        /* doors are opaque by default, unless they are open */
+        return true;
+    }
+    return !RL_PASSABLE_F(map, x, y);
+}
+
 RL_Byte *rl_map_tile(const RL_Map *map, unsigned int x, unsigned int y)
 {
     if (rl_map_in_bounds(map, x, y)) {
@@ -594,15 +727,15 @@ bool rl_map_is_wall(const RL_Map *map, unsigned int x, unsigned int y)
 {
     if (!rl_map_in_bounds(map, x, y))
         return 0;
-    if (!rl_map_is_passable(map, x, y) || rl_map_tile_is(map, x, y, RL_TileDoor) || rl_map_tile_is(map, x, y, RL_TileDoorOpen)) {
-        return rl_map_is_passable(map, x, y + 1) ||
-               rl_map_is_passable(map, x, y - 1) ||
-               rl_map_is_passable(map, x + 1, y) ||
-               rl_map_is_passable(map, x - 1, y) ||
-               rl_map_is_passable(map, x + 1, y - 1) ||
-               rl_map_is_passable(map, x - 1, y - 1) ||
-               rl_map_is_passable(map, x + 1, y + 1) ||
-               rl_map_is_passable(map, x - 1, y + 1);
+    if (!RL_PASSABLE_F(map, x, y) || rl_map_tile_is(map, x, y, RL_TileDoor) || rl_map_tile_is(map, x, y, RL_TileDoorOpen)) {
+        return RL_PASSABLE_F(map, x, y + 1) ||
+               RL_PASSABLE_F(map, x, y - 1) ||
+               RL_PASSABLE_F(map, x + 1, y) ||
+               RL_PASSABLE_F(map, x - 1, y) ||
+               RL_PASSABLE_F(map, x + 1, y - 1) ||
+               RL_PASSABLE_F(map, x - 1, y - 1) ||
+               RL_PASSABLE_F(map, x + 1, y + 1) ||
+               RL_PASSABLE_F(map, x - 1, y + 1);
     }
 
     return 0;
@@ -612,11 +745,11 @@ bool rl_map_is_wall(const RL_Map *map, unsigned int x, unsigned int y)
 bool rl_map_is_connecting(const RL_Map *map, unsigned int from_x, unsigned int from_y, unsigned int target_x, unsigned int target_y)
 {
     int x, y, x2, y2;
-    rl_assert(target_x < INT_MAX && target_y < INT_MAX && from_y < INT_MAX && target_y < INT_MAX);
+    RL_ASSERT(target_x < INT_MAX && target_y < INT_MAX && from_y < INT_MAX && target_y < INT_MAX);
     /* check that from passable neighbors can connect to target */
     for (x = (int)from_x - 1; x <= (int)from_x + 1; ++x) {
         for (y = (int)from_y - 1; y <= (int)from_y + 1; ++y) {
-            if (!rl_map_in_bounds(map, x, y) || !rl_map_is_passable(map, x, y))
+            if (!rl_map_in_bounds(map, x, y) || !RL_PASSABLE_F(map, x, y))
                 continue;
             if (rl_map_tile_is(map, x, y, RL_TileDoor) || rl_map_tile_is(map, x, y, RL_TileDoorOpen))
                 continue;
@@ -637,15 +770,15 @@ bool rl_map_is_connecting(const RL_Map *map, unsigned int from_x, unsigned int f
 RL_Byte rl_map_wall(const RL_Map *map, unsigned int x, unsigned int y)
 {
     RL_Byte mask = 0;
-    if (!rl_map_is_wall(map, x, y))
+    if (!RL_WALL_F(map, x, y))
         return mask;
-    if (rl_map_is_wall(map, x + 1, y    ) && rl_map_is_connecting(map, x, y, x + 1, y))
+    if (RL_WALL_F(map, x + 1, y    ) && rl_map_is_connecting(map, x, y, x + 1, y))
         mask |= RL_WallToEast;
-    if (rl_map_is_wall(map, x - 1, y    ) && rl_map_is_connecting(map, x, y, x - 1, y))
+    if (RL_WALL_F(map, x - 1, y    ) && rl_map_is_connecting(map, x, y, x - 1, y))
         mask |= RL_WallToWest;
-    if (rl_map_is_wall(map, x,     y - 1) && rl_map_is_connecting(map, x, y, x,     y - 1))
+    if (RL_WALL_F(map, x,     y - 1) && rl_map_is_connecting(map, x, y, x,     y - 1))
         mask |= RL_WallToNorth;
-    if (rl_map_is_wall(map, x,     y + 1) && rl_map_is_connecting(map, x, y, x,     y + 1))
+    if (RL_WALL_F(map, x,     y + 1) && rl_map_is_connecting(map, x, y, x,     y + 1))
         mask |= RL_WallToSouth;
     return mask ? mask : RL_WallOther;
 }
@@ -668,7 +801,7 @@ bool rl_map_tile_is(const RL_Map *map, unsigned int x, unsigned int y, RL_Byte t
 
 bool rl_map_is_room_wall(const RL_Map *map, unsigned int x, unsigned int y)
 {
-    if (!rl_map_is_wall(map, x, y))
+    if (!RL_WALL_F(map, x, y))
         return 0;
 
     return rl_map_tile_is(map, x, y + 1,     RL_TileRoom) ||
@@ -697,14 +830,13 @@ RL_Byte rl_map_room_wall(const RL_Map *map, unsigned int x, unsigned int y)
     return mask ? mask : RL_WallOther;
 }
 
-#ifndef RL_RNG_CUSTOM
 unsigned int rl_rng_generate(unsigned int min, unsigned int max)
 {
     int rnd;
 
-    rl_assert(max >= min);
-    rl_assert(max < RAND_MAX);
-    rl_assert(max < UINT_MAX);
+    RL_ASSERT(max >= min);
+    RL_ASSERT(max < RAND_MAX);
+    RL_ASSERT(max < UINT_MAX);
 
     if (max < min || max >= RAND_MAX || max >= UINT_MAX)
         return min;
@@ -717,14 +849,13 @@ unsigned int rl_rng_generate(unsigned int min, unsigned int max)
     /* produces more uniformity than using mod */
     return min + rnd / (RAND_MAX / (max - min + 1) + 1);
 }
-#endif
 
 RL_BSP *rl_bsp_create(unsigned int width, unsigned int height)
 {
     RL_BSP *bsp;
 
-    rl_assert(width > 0 && height > 0);
-    bsp = (RL_BSP*) rl_calloc(sizeof(*bsp), 1);
+    RL_ASSERT(width > 0 && height > 0);
+    bsp = (RL_BSP*) RL_CALLOC(sizeof(*bsp), 1);
     if (bsp == NULL) return NULL;
     bsp->width = width;
     bsp->height = height;
@@ -742,7 +873,7 @@ void rl_bsp_destroy(RL_BSP* root)
             rl_bsp_destroy(root->right);
             root->right = NULL;
         }
-        rl_free(root);
+        RL_FREE(root);
     }
 }
 
@@ -751,7 +882,7 @@ void rl_bsp_split(RL_BSP *node, unsigned int position, RL_SplitDirection directi
     RL_BSP *left, *right;
 
     /* can't split something already split */
-    rl_assert(node->left == NULL && node->right == NULL);
+    RL_ASSERT(node->left == NULL && node->right == NULL);
 
     if (node->left || node->right)
         return;
@@ -761,12 +892,12 @@ void rl_bsp_split(RL_BSP *node, unsigned int position, RL_SplitDirection directi
     if (direction == RL_SplitHorizontally && position >= node->width)
         return;
 
-    left = (RL_BSP*) rl_calloc(1, sizeof(RL_BSP));
+    left = (RL_BSP*) RL_CALLOC(1, sizeof(RL_BSP));
     if (left == NULL)
         return;
-    right = (RL_BSP*) rl_calloc(1, sizeof(RL_BSP));
+    right = (RL_BSP*) RL_CALLOC(1, sizeof(RL_BSP));
     if (right == NULL) {
-        rl_free(left);
+        RL_FREE(left);
         return;
     }
 
@@ -802,9 +933,9 @@ RL_Status rl_bsp_recursive_split(RL_BSP *root, unsigned int min_width, unsigned 
     RL_BSP *left, *right;
     RL_Status ret;
 
-    rl_assert(root);
-    rl_assert(min_width > 0 && min_height > 0 && root != NULL);
-    rl_assert(min_width <= root->width && min_height <= root->height);
+    RL_ASSERT(root);
+    RL_ASSERT(min_width > 0 && min_height > 0 && root != NULL);
+    RL_ASSERT(min_width <= root->width && min_height <= root->height);
 
     if (root == NULL)
         return RL_ErrorNullParameter;
@@ -850,16 +981,16 @@ RL_Status rl_bsp_recursive_split(RL_BSP *root, unsigned int min_width, unsigned 
 
     ret = rl_bsp_recursive_split(left, min_width, min_height, max_recursion - 1);
     if (ret != RL_OK) {
-        rl_free(left);
-        rl_free(right);
+        RL_FREE(left);
+        RL_FREE(right);
         root->left = root->right = NULL;
         return ret;
     }
 
     ret = rl_bsp_recursive_split(right, min_width, min_height, max_recursion - 1);
     if (ret != RL_OK) {
-        rl_free(left);
-        rl_free(right);
+        RL_FREE(left);
+        RL_FREE(right);
         root->left = root->right = NULL;
         return ret;
     }
@@ -867,13 +998,13 @@ RL_Status rl_bsp_recursive_split(RL_BSP *root, unsigned int min_width, unsigned 
     return RL_OK;
 }
 
-bool rl_bsp_is_leaf(RL_BSP *node)
+bool rl_bsp_is_leaf(const RL_BSP *node)
 {
     if (node == NULL) return 0;
     return (node->left == NULL && node->right == NULL);
 }
 
-RL_BSP *rl_bsp_sibling(RL_BSP *node)
+RL_BSP *rl_bsp_sibling(const RL_BSP *node)
 {
     if (node && node->parent) {
         if (node->parent->left == node)
@@ -881,7 +1012,7 @@ RL_BSP *rl_bsp_sibling(RL_BSP *node)
         if (node->parent->right == node)
             return node->parent->left;
 
-        rl_assert("BSP structure is invalid" && 0); /* BSP structure is invalid */
+        RL_ASSERT("BSP structure is invalid" && 0); /* BSP structure is invalid */
     }
 
     return NULL;
@@ -924,7 +1055,7 @@ RL_BSP *rl_bsp_next_leaf_recursive_down(RL_BSP *node)
         return NULL;
     return rl_bsp_next_leaf_recursive_down(node->left);
 }
-RL_BSP *rl_bsp_next_leaf_recursive(RL_BSP *node)
+RL_BSP *rl_bsp_next_leaf_recursive(const RL_BSP *node)
 {
     if (node == NULL || node->parent == NULL)
         return NULL;
@@ -932,18 +1063,18 @@ RL_BSP *rl_bsp_next_leaf_recursive(RL_BSP *node)
         return rl_bsp_next_leaf_recursive_down(node->parent->right);
     return rl_bsp_next_leaf_recursive(node->parent);
 }
-RL_BSP *rl_bsp_next_leaf(RL_BSP *node)
+RL_BSP *rl_bsp_next_leaf(const RL_BSP *node)
 {
     if (node == NULL || node->parent == NULL)
         return NULL;
-    rl_assert(rl_bsp_is_leaf(node));
+    RL_ASSERT(rl_bsp_is_leaf(node));
 
     /* LOOP up until we are on the left, then go back down */
     return rl_bsp_next_leaf_recursive(node);
 }
-RL_BSP* rl_bsp_random_leaf(RL_BSP *root)
+RL_BSP* rl_bsp_random_leaf(const RL_BSP *root)
 {
-    RL_BSP *node;
+    const RL_BSP *node;
 
     if (root == NULL)
         return NULL;
@@ -957,15 +1088,15 @@ RL_BSP* rl_bsp_random_leaf(RL_BSP *root)
         }
     }
 
-    return node;
+    return (RL_BSP*) node;
 }
 
-size_t rl_bsp_leaf_count(RL_BSP *root)
+size_t rl_bsp_leaf_count(const RL_BSP *root)
 {
     int count;
-    RL_BSP *node;
+    const RL_BSP *node;
     if (root == NULL) return 0;
-    rl_assert(root->parent == NULL);
+    RL_ASSERT(root->parent == NULL);
     /* find first leaf */
     node = root;
     while (node->left != NULL) {
@@ -982,8 +1113,8 @@ size_t rl_bsp_leaf_count(RL_BSP *root)
 static void rl_map_bsp_generate_room(RL_Map *map, unsigned int room_width, unsigned int room_height, unsigned int room_x, unsigned int room_y)
 {
     unsigned int x, y;
-    rl_assert(map && room_width + room_x <= map->width);
-    rl_assert(map && room_height + room_y <= map->height);
+    RL_ASSERT(map && room_width + room_x <= map->width);
+    RL_ASSERT(map && room_height + room_y <= map->height);
     if (map == NULL) return;
     for (x = room_x; x < room_x + room_width; ++x) {
         for (y = room_y; y < room_y + room_height; ++y) {
@@ -1000,16 +1131,16 @@ static void rl_map_bsp_generate_room(RL_Map *map, unsigned int room_width, unsig
 }
 static void rl_map_bsp_generate_rooms(RL_BSP *node, RL_Map *map, unsigned int room_min_width, unsigned int room_max_width, unsigned int room_min_height, unsigned int room_max_height, unsigned int room_padding)
 {
-    rl_assert(map);
-    rl_assert(room_min_width < room_max_width);
-    rl_assert(room_min_height < room_max_height);
-    rl_assert(room_max_width + room_padding*2 < UINT_MAX);
-    rl_assert(room_max_height + room_padding*2 < UINT_MAX);
-    rl_assert(room_min_width > 2 && room_min_height > 2); /* width of 2 can end up having rooms made of nothing but walls */
-    rl_assert(node && room_min_width < node->width);
-    rl_assert(node && room_min_height < node->height);
-    rl_assert(node && room_max_width <= node->width);
-    rl_assert(node && room_max_height <= node->height);
+    RL_ASSERT(map);
+    RL_ASSERT(room_min_width < room_max_width);
+    RL_ASSERT(room_min_height < room_max_height);
+    RL_ASSERT(room_max_width + room_padding*2 < UINT_MAX);
+    RL_ASSERT(room_max_height + room_padding*2 < UINT_MAX);
+    RL_ASSERT(room_min_width > 2 && room_min_height > 2); /* width of 2 can end up having rooms made of nothing but walls */
+    RL_ASSERT(node && room_min_width < node->width);
+    RL_ASSERT(node && room_min_height < node->height);
+    RL_ASSERT(node && room_max_width <= node->width);
+    RL_ASSERT(node && room_max_height <= node->height);
     if (map == NULL) return;
     if (node && node->left) {
         if (rl_bsp_is_leaf(node->left)) {
@@ -1063,10 +1194,10 @@ RL_Status rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config)
 {
     RL_Status ret;
     RL_BSP *bsp;
-    rl_assert(map);
+    RL_ASSERT(map);
     if (map == NULL) return RL_ErrorMemory;
     bsp = rl_bsp_create(map->width, map->height);
-    rl_assert(bsp);
+    RL_ASSERT(bsp);
     if (bsp == NULL) return RL_ErrorMemory;
     memset(map->tiles, RL_TileRock, sizeof(*map->tiles)*map->width*map->height);
     ret = rl_mapgen_bsp_ex(map, bsp, &config);
@@ -1079,14 +1210,14 @@ RL_Status rl_mapgen_bsp_ex(RL_Map *map, RL_BSP *root, const RL_MapgenConfigBSP *
 {
     RL_Status ret;
 
-    rl_assert(map);
-    rl_assert(root);
-    rl_assert(root->width > 0 && root->height > 0);
-    rl_assert(root->x < root->width && root->y < root->height);
-    rl_assert(config);
-    rl_assert(config->room_min_width > 0 && config->room_max_width >= config->room_min_width && config->room_min_height > 0 && config->room_max_height >= config->room_min_height);
-    rl_assert(config->room_max_width <= map->width && config->room_max_height <= map->height);
-    rl_assert(config->max_splits > 0);
+    RL_ASSERT(map);
+    RL_ASSERT(root);
+    RL_ASSERT(root->width > 0 && root->height > 0);
+    RL_ASSERT(root->x < root->width && root->y < root->height);
+    RL_ASSERT(config);
+    RL_ASSERT(config->room_min_width > 0 && config->room_max_width >= config->room_min_width && config->room_min_height > 0 && config->room_max_height >= config->room_min_height);
+    RL_ASSERT(config->room_max_width <= map->width && config->room_max_height <= map->height);
+    RL_ASSERT(config->max_splits > 0);
 
     if (map == NULL || root == NULL || config == NULL) {
         return RL_ErrorNullParameter;
@@ -1111,9 +1242,9 @@ void rl_bsp_find_room(RL_Map *map, RL_BSP *leaf, unsigned int *dx, unsigned int 
     unsigned int x, y;
     unsigned int start_x, start_y, end_x, end_y;
     bool found_start = false;
-    rl_assert(dx && dy);
-    rl_assert(map);
-    rl_assert(leaf);
+    RL_ASSERT(dx && dy);
+    RL_ASSERT(map);
+    RL_ASSERT(leaf);
     for (x = leaf->x; x < leaf->width + leaf->x; ++x) {
         for (y = leaf->y; y < leaf->height + leaf->y; ++y) {
             if (!found_start) {
@@ -1132,7 +1263,7 @@ void rl_bsp_find_room(RL_Map *map, RL_BSP *leaf, unsigned int *dx, unsigned int 
                     /* found end - return middle of room */
                     int diff_x = end_x - start_x;
                     int diff_y = end_y - start_y;
-                    rl_assert(diff_x >= 0 && diff_y >= 0);
+                    RL_ASSERT(diff_x >= 0 && diff_y >= 0);
                     *dx = start_x + diff_x/2;
                     *dy = start_y + diff_y/2;
                 }
@@ -1164,18 +1295,18 @@ RL_Status rl_mapgen_automata(RL_Map *map, RL_MapgenConfigAutomata config)
 }
 
 #if RL_ENABLE_PATHFINDING
-static inline float rl_mapgen_corridor_scorer(RL_GraphNode *current, RL_GraphNode *neighbor, void *context);
+static inline float rl_mapgen_corridor_scorer(const RL_GraphNode *current, const RL_GraphNode *neighbor, void *context);
 #endif
 RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int offset_y, unsigned int width, unsigned int height,  const RL_MapgenConfigAutomata *config)
 {
     unsigned int i, x, y;
 
-    rl_assert(map && config);
-    rl_assert(width > 0 && height > 0);
-    rl_assert(offset_x < width && offset_y < height);
-    rl_assert(offset_x < map->width && offset_y < map->height);
-    rl_assert(offset_x + width <= map->width && offset_y + height <= map->height);
-    rl_assert(config->chance_cell_initialized > 0 && config->chance_cell_initialized <= 100);
+    RL_ASSERT(map && config);
+    RL_ASSERT(width > 0 && height > 0);
+    RL_ASSERT(offset_x < width && offset_y < height);
+    RL_ASSERT(offset_x < map->width && offset_y < map->height);
+    RL_ASSERT(offset_x + width <= map->width && offset_y + height <= map->height);
+    RL_ASSERT(config->chance_cell_initialized > 0 && config->chance_cell_initialized <= 100);
 
     if (map == NULL || config == NULL) {
         return RL_ErrorNullParameter;
@@ -1224,7 +1355,7 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
             for (y=offset_y; y<offset_y + height; ++y) {
                 int i;
                 bool is_scored = false;
-                if (rl_map_is_passable(map, x, y)) {
+                if (RL_PASSABLE_F(map, x, y)) {
                     for (i=0; i<heap->len; ++i) {
                         RL_Graph *floodfill = (RL_Graph*) heap->heap[i];
                         if (rl_graph_is_scored(floodfill, RL_XY(x, y))) {
@@ -1233,7 +1364,7 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
                         }
                     }
                     if (!is_scored) {
-                        RL_Graph *floodfill = rl_dijkstra_create(map, RL_XY(x, y), NULL, rl_map_is_passable);
+                        RL_Graph *floodfill = rl_dijkstra_create(map, RL_XY(x, y), NULL);
                         rl_heap_insert(heap, floodfill);
                     }
                 }
@@ -1242,8 +1373,8 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
         /* connect each floodfill with another random one */
         if (heap->len > 1) {
             int i;
-            RL_Graph *graph = rl_graph_create(map, NULL, 0);
-            rl_assert(graph);
+            RL_Graph *graph = rl_graph_create_ex(map, NULL, 0);
+            RL_ASSERT(graph);
             for (i=0; i<heap->len; ++i) {
                 RL_Graph *floodfill_target;
                 RL_Graph *floodfill;
@@ -1256,31 +1387,31 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
                     j = rl_rng_generate(0, heap->len - 1);
                 }
                 floodfill_target = (RL_Graph*) heap->heap[j];
-                rl_assert(floodfill && floodfill_target);
+                RL_ASSERT(floodfill && floodfill_target);
                 /* find start & end point for corridor pathfinding */
                 for (node_idx=0; node_idx<floodfill->length; ++node_idx) {
                     RL_GraphNode *n = &floodfill->nodes[node_idx];
-                    rl_assert(n);
-                    if (n->score < FLT_MAX && rl_map_is_passable(map, n->point.x, n->point.y)) {
+                    RL_ASSERT(n);
+                    if (n->score < FLT_MAX && RL_PASSABLE_F(map, n->point.x, n->point.y)) {
                         dig_start = n->point;
                         break;
                     }
                 }
-                rl_assert(rl_map_is_passable(map, dig_start.x, dig_start.y));
+                RL_ASSERT(RL_PASSABLE_F(map, dig_start.x, dig_start.y));
                 for (node_idx=0; node_idx<floodfill_target->length; ++node_idx) {
                     RL_GraphNode *n = &floodfill_target->nodes[node_idx];
-                    rl_assert(n);
-                    if (n->score < FLT_MAX && rl_map_is_passable(map, n->point.x, n->point.y)) {
+                    RL_ASSERT(n);
+                    if (n->score < FLT_MAX && RL_PASSABLE_F(map, n->point.x, n->point.y)) {
                         dig_end = n->point;
                         break;
                     }
                 }
-                rl_assert(rl_map_is_passable(map, dig_end.x, dig_end.y));
-                rl_assert(!(dig_start.x == dig_end.x && dig_start.y == dig_end.y));
+                RL_ASSERT(RL_PASSABLE_F(map, dig_end.x, dig_end.y));
+                RL_ASSERT(!(dig_start.x == dig_end.x && dig_start.y == dig_end.y));
                 /* carve out corridors */
                 rl_dijkstra_score_ex(graph, dig_end, rl_mapgen_corridor_scorer, map);
                 RL_Path *path = rl_path_create_from_graph(graph, dig_start);
-                rl_assert(path);
+                RL_ASSERT(path);
                 while ((path = rl_path_walk(path))) {
                     if (rl_map_tile_is(map, path->point.x, path->point.y, RL_TileRock)) {
                         map->tiles[(size_t)floor(path->point.x) + (size_t)floor(path->point.y) * map->width] = RL_TileCorridor;
@@ -1361,20 +1492,29 @@ int rl_mapgen_maze_unvisited_neighbors(RL_MapPoint ps[4], const RL_Map *map, int
     return count;
 }
 
-RL_Status rl_mapgen_maze(RL_Map *map, unsigned int offset_x, unsigned int offset_y, unsigned int width, unsigned int height)
+RL_Status rl_mapgen_maze(RL_Map *map)
+{
+    RL_ASSERT(map);
+    if (map == NULL) return RL_ErrorNullParameter;
+    RL_ASSERT(map->width > 2 && map->height > 2);
+    memset(map->tiles, RL_TileRock, sizeof(*map->tiles) * map->width * map->height);
+    return rl_mapgen_maze_ex(map, 1, 1, map->width - 2, map->height - 2);
+}
+
+RL_Status rl_mapgen_maze_ex(RL_Map *map, unsigned int offset_x, unsigned int offset_y, unsigned int width, unsigned int height)
 {
     int x, y;
     RL_MapPoint *ps;
     RL_MapPoint *p;
     RL_Heap *heap;
 
-    rl_assert(map);
-    rl_assert(width > 0 && height > 0);
-    rl_assert(offset_x < width && offset_y < height);
-    rl_assert(offset_x < map->width && offset_y < map->height);
-    rl_assert(offset_x + width <= map->width && offset_y + height <= map->height);
-    rl_assert(offset_x + width < INT_MAX);
-    rl_assert(offset_y + height < INT_MAX);
+    RL_ASSERT(map);
+    RL_ASSERT(width > 0 && height > 0);
+    RL_ASSERT(offset_x < width && offset_y < height);
+    RL_ASSERT(offset_x < map->width && offset_y < map->height);
+    RL_ASSERT(offset_x + width <= map->width && offset_y + height <= map->height);
+    RL_ASSERT(offset_x + width < INT_MAX);
+    RL_ASSERT(offset_y + height < INT_MAX);
 
     if (map == NULL) {
         return RL_ErrorNullParameter;
@@ -1389,9 +1529,9 @@ RL_Status rl_mapgen_maze(RL_Map *map, unsigned int offset_x, unsigned int offset
 
     /* allocate memory for BFS */
     heap = rl_heap_create(width * height, NULL);
-    ps = (RL_MapPoint*) rl_malloc(sizeof(*ps) * map->width * map->height);
+    ps = (RL_MapPoint*) RL_MALLOC(sizeof(*ps) * map->width * map->height);
 
-    rl_assert(ps && heap);
+    RL_ASSERT(ps && heap);
     if (ps == NULL || heap == NULL) {
         return RL_ErrorMemory;
     }
@@ -1415,8 +1555,8 @@ RL_Status rl_mapgen_maze(RL_Map *map, unsigned int offset_x, unsigned int offset
         i = rl_rng_generate(0, neighbors_count - 1);
         x = neighbors[i].x;
         y = neighbors[i].y;
-        rl_assert(rl_map_in_bounds(map, x, y));
-        rl_assert(map->tiles[x + y*map->width] == RL_TileRock);
+        RL_ASSERT(rl_map_in_bounds(map, x, y));
+        RL_ASSERT(map->tiles[x + y*map->width] == RL_TileRock);
         /* unvisited neighbor - remove wall and push to heap */
         wall_x = x;
         wall_y = y;
@@ -1435,7 +1575,7 @@ RL_Status rl_mapgen_maze(RL_Map *map, unsigned int offset_x, unsigned int offset
 
     /* free memory for BFS */
     rl_heap_destroy(heap);
-    rl_free(ps);
+    RL_FREE(ps);
 
     return RL_OK;
 }
@@ -1448,7 +1588,7 @@ void rl_mapgen_connect_corridors_simple(RL_Map *map, RL_BSP *root, bool draw_doo
     int direction, diff_y, diff_x;
     RL_BSP *node, *sibling, *left, *right;
 
-    rl_assert(map && root);
+    RL_ASSERT(map && root);
     if (!map || !root) return;
 
     /* connect siblings */
@@ -1471,9 +1611,9 @@ void rl_mapgen_connect_corridors_simple(RL_Map *map, RL_BSP *root, bool draw_doo
     dig_end_x = right->x + right->width / 2;
     dig_end_y = right->y + right->height / 2;
 #endif
-    rl_assert(rl_map_is_passable(map, dig_start_x, dig_start_y));
-    rl_assert(rl_map_is_passable(map, dig_end_x, dig_end_y));
-    rl_assert(!(dig_start_x == dig_end_x && dig_start_y == dig_end_y));
+    RL_ASSERT(RL_PASSABLE_F(map, dig_start_x, dig_start_y));
+    RL_ASSERT(RL_PASSABLE_F(map, dig_end_x, dig_end_y));
+    RL_ASSERT(!(dig_start_x == dig_end_x && dig_start_y == dig_end_y));
 
     /* carve out corridors */
     cur_x = dig_start_x;
@@ -1488,8 +1628,7 @@ void rl_mapgen_connect_corridors_simple(RL_Map *map, RL_BSP *root, bool draw_doo
     }
     while (cur_x != dig_end_x || cur_y != dig_end_y) {
         /* prevent digging float wide corridors */
-        unsigned int next_x, next_y;
-        next_x = cur_x;
+        unsigned int next_x, next_y; next_x = cur_x;
         next_y = cur_y;
         if (direction == 0) { /* digging left<->right */
             if (cur_x == dig_end_x) {
@@ -1541,7 +1680,7 @@ RL_Status rl_mapgen_connect_corridors(RL_Map *map, RL_BSP *root, bool draw_doors
             {
                 /* cull non-connected tiles */
                 RL_Graph *floodfill = rl_graph_floodfill_largest_area(map);
-                rl_assert(floodfill);
+                RL_ASSERT(floodfill);
                 if (floodfill) {
                     for (size_t x=0; x < map->width; ++x) {
                         for (size_t y=0; y < map->height; ++y) {
@@ -1584,16 +1723,16 @@ static int rl_heap_noop_comparison_f(const void *_a, const void *_b)
 RL_Heap *rl_heap_create(int capacity, int (*comparison_f)(const void *heap_item_a, const void *heap_item_b))
 {
     RL_Heap *heap;
-    heap = (RL_Heap*) rl_malloc(sizeof(*heap));
-    rl_assert(heap);
-    rl_assert(capacity > 0);
+    heap = (RL_Heap*) RL_MALLOC(sizeof(*heap));
+    RL_ASSERT(heap);
+    RL_ASSERT(capacity > 0);
     if (heap == NULL) {
         return NULL;
     }
-    heap->heap = (void**) rl_malloc(sizeof(*heap->heap) * capacity);
-    rl_assert(heap->heap);
+    heap->heap = (void**) RL_MALLOC(sizeof(*heap->heap) * capacity);
+    RL_ASSERT(heap->heap);
     if (heap->heap == NULL) {
-        rl_free(heap);
+        RL_FREE(heap);
         return NULL;
     }
 
@@ -1612,13 +1751,13 @@ void rl_heap_destroy(RL_Heap *h)
 {
     if (h) {
         if (h->heap) {
-            rl_free(h->heap);
+            RL_FREE(h->heap);
         }
-        rl_free(h);
+        RL_FREE(h);
     }
 }
 
-int rl_heap_length(RL_Heap *h)
+int rl_heap_length(const RL_Heap *h)
 {
     if (h == NULL) return 0;
     return h->len;
@@ -1627,13 +1766,13 @@ int rl_heap_length(RL_Heap *h)
 bool rl_heap_insert(RL_Heap *h, void *item)
 {
     int i;
-    rl_assert(h != NULL);
+    RL_ASSERT(h != NULL);
     if (h == NULL) return false;
 
     if (h->len == h->cap) {
         /* resize the heap */
-        void **heap_items = (void**) rl_realloc(h->heap, sizeof(void*) * h->cap * 2);
-        rl_assert(heap_items);
+        void **heap_items = (void**) RL_REALLOC(h->heap, sizeof(void*) * h->cap * 2);
+        RL_ASSERT(heap_items);
         if (heap_items == NULL) {
             rl_heap_destroy(h);
             return false;
@@ -1660,7 +1799,7 @@ bool rl_heap_insert(RL_Heap *h, void *item)
 static void rl_heap_remove(RL_Heap *h, int index)
 {
     int i;
-    rl_assert(h);
+    RL_ASSERT(h);
     if (h == NULL) {
         return;
     }
@@ -1690,7 +1829,7 @@ void *rl_heap_pop(RL_Heap *h)
 
     r = NULL;
     if (h->len) {
-        rl_assert(h->heap);
+        RL_ASSERT(h->heap);
         r = h->heap[0];
         rl_heap_remove(h, 0);
     }
@@ -1703,7 +1842,7 @@ void *rl_heap_peek(RL_Heap *h)
         return NULL;
     }
 
-    rl_assert(h->heap);
+    RL_ASSERT(h->heap);
     if (h->len) {
         return h->heap[0];
     } else {
@@ -1730,8 +1869,8 @@ static int rl_scored_graph_heap_comparison(const void *heap_item_a, const void *
 
 RL_Path *rl_path(RL_Point p)
 {
-    RL_Path *path = (RL_Path*) rl_malloc(sizeof(*path));
-    rl_assert(path);
+    RL_Path *path = (RL_Path*) RL_MALLOC(sizeof(*path));
+    RL_ASSERT(path);
     if (path == NULL) return NULL;
     path->next = NULL;
     path->point = p;
@@ -1761,7 +1900,7 @@ float rl_distance_chebyshev(RL_Point node, RL_Point end)
 }
 
 /* custom Dijkstra scorer function to prevent carving double wide doors when carving corridors */
-static inline float rl_mapgen_corridor_scorer(RL_GraphNode *current, RL_GraphNode *neighbor, void *context)
+static inline float rl_mapgen_corridor_scorer(const RL_GraphNode *current, const RL_GraphNode *neighbor, void *context)
 {
     RL_Map *map = (RL_Map*) context;
     RL_Point start = current->point;
@@ -1774,7 +1913,7 @@ static inline float rl_mapgen_corridor_scorer(RL_GraphNode *current, RL_GraphNod
     if (rl_map_is_corner_wall(map, end.x, end.y)) {
         return r + 99; /* discourage double wide corridors & double carving into walls */
     }
-    if (rl_map_is_wall(map, end.x, end.y)) {
+    if (RL_WALL_F(map, end.x, end.y)) {
         return r + 9; /* discourage double wide corridors & double carving into walls */
     }
 
@@ -1783,7 +1922,7 @@ static inline float rl_mapgen_corridor_scorer(RL_GraphNode *current, RL_GraphNod
 
 void rl_mapgen_connect_corridors_bsp_recursive(RL_Map *map, RL_BSP *root, bool draw_doors, RL_Graph *graph)
 {
-    rl_assert(map && root && graph);
+    RL_ASSERT(map && root && graph);
     if (map == NULL || root == NULL || graph == NULL) return;
 
     /* connect siblings */
@@ -1796,17 +1935,17 @@ void rl_mapgen_connect_corridors_bsp_recursive(RL_Map *map, RL_BSP *root, bool d
     RL_BSP *leaf = rl_bsp_random_leaf(node);
     rl_bsp_find_room(map, leaf, &x, &y);
     RL_Point dig_start = {x, y};
-    rl_assert(rl_map_is_passable(map, dig_start.x, dig_start.y));
+    RL_ASSERT(RL_PASSABLE_F(map, dig_start.x, dig_start.y));
     leaf = rl_bsp_random_leaf(sibling);
     rl_bsp_find_room(map, leaf, &x, &y);
     RL_Point dig_end = {x, y};
-    rl_assert(rl_map_is_passable(map, dig_end.x, dig_end.y));
-    rl_assert(!(dig_start.x == dig_end.x && dig_start.y == dig_end.y));
+    RL_ASSERT(RL_PASSABLE_F(map, dig_end.x, dig_end.y));
+    RL_ASSERT(!(dig_start.x == dig_end.x && dig_start.y == dig_end.y));
 
     /* carve out corridors */
     rl_dijkstra_score_ex(graph, dig_end, rl_mapgen_corridor_scorer, map);
     RL_Path *path = rl_path_create_from_graph(graph, dig_start);
-    rl_assert(path);
+    RL_ASSERT(path);
     while ((path = rl_path_walk(path))) {
         if (rl_map_tile_is(map, path->point.x, path->point.y, RL_TileRock)) {
             if (rl_map_is_room_wall(map, path->point.x, path->point.y) && draw_doors) {
@@ -1823,8 +1962,8 @@ void rl_mapgen_connect_corridors_bsp_recursive(RL_Map *map, RL_BSP *root, bool d
 }
 void rl_mapgen_connect_corridors_bsp(RL_Map *map, RL_BSP *root, bool draw_doors)
 {
-    RL_Graph *graph = rl_graph_create(map, NULL, 0);
-    rl_assert(graph);
+    RL_Graph *graph = rl_graph_create_ex(map, NULL, 0);
+    RL_ASSERT(graph);
     if (graph) {
         rl_mapgen_connect_corridors_bsp_recursive(map, root, draw_doors, graph);
         rl_graph_destroy(graph);
@@ -1833,7 +1972,7 @@ void rl_mapgen_connect_corridors_bsp(RL_Map *map, RL_BSP *root, bool draw_doors)
 
 void rl_mapgen_connect_corridors_randomly(RL_Map *map, RL_BSP *root, bool draw_doors)
 {
-    rl_assert(map && root);
+    RL_ASSERT(map && root);
     if (!map || !root) return;
 
     /* find deepest left-most node */
@@ -1841,33 +1980,34 @@ void rl_mapgen_connect_corridors_randomly(RL_Map *map, RL_BSP *root, bool draw_d
     while (leftmost_node->left != NULL) {
         leftmost_node = leftmost_node->left;
     }
-    rl_assert(leftmost_node && rl_bsp_is_leaf(leftmost_node));
+    RL_ASSERT(leftmost_node && rl_bsp_is_leaf(leftmost_node));
     RL_BSP *node = leftmost_node;
-    RL_Graph *graph = rl_graph_create(map, NULL, 0);
-    rl_assert(graph);
+    RL_Graph *graph = rl_graph_create_ex(map, NULL, 0);
+    RL_ASSERT(graph);
     if (graph == NULL) return;
     while (node) {
         RL_BSP *sibling;
 
         /* find random sibling */
         while ((sibling = rl_bsp_random_leaf(root)) == node) {}
-        rl_assert(sibling);
+        RL_ASSERT(sibling);
 
+        /* TODO need to change this to find the *actual* room (e.g. what if the user provides a map filled with "."?) */
         unsigned int x, y;
         rl_bsp_find_room(map, node, &x, &y);
-        rl_assert(rl_map_is_passable(map, x, y));
+        RL_ASSERT(RL_PASSABLE_F(map, x, y));
         RL_Point dig_start = {x, y};
-        rl_assert(rl_map_is_passable(map, dig_start.x, dig_start.y));
+        RL_ASSERT(RL_PASSABLE_F(map, dig_start.x, dig_start.y));
         rl_bsp_find_room(map, sibling, &x, &y);
-        rl_assert(rl_map_is_passable(map, x, y));
+        RL_ASSERT(RL_PASSABLE_F(map, x, y));
         RL_Point dig_end = {x, y};
-        rl_assert(rl_map_is_passable(map, dig_end.x, dig_end.y));
-        rl_assert(!(dig_start.x == dig_end.x && dig_start.y == dig_end.y));
+        RL_ASSERT(RL_PASSABLE_F(map, dig_end.x, dig_end.y));
+        RL_ASSERT(!(dig_start.x == dig_end.x && dig_start.y == dig_end.y));
 
         /* carve out corridors */
         rl_dijkstra_score_ex(graph, dig_end, rl_mapgen_corridor_scorer, map);
         RL_Path *path = rl_path_create_from_graph(graph, dig_start);
-        rl_assert(path);
+        RL_ASSERT(path);
         while ((path = rl_path_walk(path))) {
             if (rl_map_tile_is(map, path->point.x, path->point.y, RL_TileRock)) {
                 if (rl_map_is_room_wall(map, path->point.x, path->point.y) && draw_doors) {
@@ -1888,20 +2028,20 @@ void rl_mapgen_connect_corridors_randomly(RL_Map *map, RL_BSP *root, bool draw_d
 
 RL_Graph *rl_graph_floodfill_largest_area(const RL_Map *map)
 {
-    rl_assert(map);
+    RL_ASSERT(map);
     if (map == NULL) return NULL;
-    int *visited = (int*) rl_calloc(sizeof(*visited), map->width * map->height);
-    rl_assert(visited);
+    int *visited = (int*) RL_CALLOC(sizeof(*visited), map->width * map->height);
+    RL_ASSERT(visited);
     if (visited == NULL) return NULL;
     RL_Graph *floodfill = NULL; /* largest floodfill */
     int floodfill_scored = 0;
     for (unsigned int x = 0; x < map->width; ++x) {
         for (unsigned int y = 0; y < map->height; ++y) {
-            if (rl_map_is_passable(map, x, y) && !visited[x + y*map->width]) {
-                RL_Graph *test = rl_dijkstra_create(map, RL_XY(x, y), NULL, rl_map_is_passable);
-                rl_assert(test);
+            if (RL_PASSABLE_F(map, x, y) && !visited[x + y*map->width]) {
+                RL_Graph *test = rl_dijkstra_create(map, RL_XY(x, y), NULL);
+                RL_ASSERT(test);
                 if (test == NULL) {
-                    rl_free(visited);
+                    RL_FREE(visited);
                     if (floodfill) {
                         rl_graph_destroy(floodfill);
                     }
@@ -1927,7 +2067,7 @@ RL_Graph *rl_graph_floodfill_largest_area(const RL_Map *map)
         }
     }
 
-    rl_free(visited);
+    RL_FREE(visited);
 
     return floodfill;
 }
@@ -1974,13 +2114,13 @@ RL_Path *rl_line_create(RL_Point a, RL_Point b, float step)
     return head;
 }
 
-RL_Path *rl_path_create(const RL_Map *map, RL_Point start, RL_Point end, RL_DistanceFun distance_f, RL_PassableFun passable_f)
+RL_Path *rl_path_create(const RL_Map *map, RL_Point start, RL_Point end, RL_DistanceFun distance_f)
 {
-    RL_Graph *graph = rl_dijkstra_create(map, end, distance_f, passable_f);
-    rl_assert(graph);
+    RL_Graph *graph = rl_dijkstra_create(map, end, distance_f);
+    RL_ASSERT(graph);
     if (graph == NULL) return NULL;
     RL_Path *path = rl_path_create_from_graph(graph, start);
-    rl_assert(path);
+    RL_ASSERT(path);
     rl_graph_destroy(graph);
 
     return path;
@@ -1991,8 +2131,8 @@ RL_Path *rl_path_create_from_graph(const RL_Graph *graph, RL_Point start)
     RL_Path *path = rl_path(start);
     RL_Path *path_start = path;
     RL_GraphNode *node = NULL;
-    rl_assert(path);
-    rl_assert(graph && graph->nodes);
+    RL_ASSERT(path);
+    RL_ASSERT(graph && graph->nodes);
     if (path == NULL || graph == NULL || graph->nodes == NULL) return NULL;
     for (size_t i=0; i<graph->length; i++) {
         if (graph->nodes[i].point.x == start.x && graph->nodes[i].point.y == start.y) {
@@ -2002,20 +2142,11 @@ RL_Path *rl_path_create_from_graph(const RL_Graph *graph, RL_Point start)
     if (node == NULL) {
         return path;
     }
-    while (node->score > 0) {
-        RL_GraphNode *lowest_neighbor = NULL;
-        for (size_t i=0; i<node->neighbors_length; i++) {
-            RL_GraphNode *neighbor = node->neighbors[i];
-            if (!lowest_neighbor || neighbor->score < lowest_neighbor->score) {
-                lowest_neighbor = neighbor;
-            }
-        }
-        if (!lowest_neighbor || lowest_neighbor->score == FLT_MAX || node == lowest_neighbor) {
-            break; /* no path found */
-        }
-        node = lowest_neighbor;
+    while (node != NULL && node->score > 0) {
+        node = rl_graph_lowest_scored_neighbor(graph, node);
+        if (node == NULL) break;
         path->next = rl_path(node->point);
-        rl_assert(path->next);
+        RL_ASSERT(path->next);
         if (path->next == NULL) {
             rl_path_destroy(path);
             return NULL;
@@ -2031,7 +2162,7 @@ RL_Path *rl_path_walk(RL_Path *path)
     if (!path) return NULL;
     RL_Path *next = path->next;
     path->next = NULL;
-    rl_free(path);
+    RL_FREE(path);
 
     return next;
 }
@@ -2043,16 +2174,21 @@ void rl_path_destroy(RL_Path *path)
     }
 }
 
-RL_Graph *rl_graph_create(const RL_Map *map, RL_PassableFun passable_f, bool allow_diagonal_neighbors)
+RL_Graph *rl_graph_create(const RL_Map *map)
 {
-    RL_Graph *graph = (RL_Graph*) rl_malloc(sizeof(*graph));
-    rl_assert(graph);
+    return rl_graph_create_ex(map, RL_PASSABLE_F, true);
+}
+
+RL_Graph *rl_graph_create_ex(const RL_Map *map, RL_PassableFun passable_f, bool allow_diagonal_neighbors)
+{
+    RL_Graph *graph = (RL_Graph*) RL_MALLOC(sizeof(*graph));
+    RL_ASSERT(graph);
     if (graph == NULL) return NULL;
     size_t length = map->width * map->height;
-    RL_GraphNode *nodes = (RL_GraphNode*) rl_calloc(sizeof(*nodes), length);
-    rl_assert(nodes != NULL);
+    RL_GraphNode *nodes = (RL_GraphNode*) RL_CALLOC(sizeof(*nodes), length);
+    RL_ASSERT(nodes != NULL);
     if (nodes == NULL) {
-        rl_free(graph);
+        RL_FREE(graph);
         return NULL;
     }
     for (unsigned int x=0; x<map->width; x++) {
@@ -2104,10 +2240,9 @@ RL_Graph *rl_graph_create(const RL_Map *map, RL_PassableFun passable_f, bool all
 
 RL_Graph *rl_dijkstra_create(const RL_Map *map,
                             RL_Point start,
-                            RL_DistanceFun distance_f,
-                            RL_PassableFun passable_f)
+                            RL_DistanceFun distance_f)
 {
-    RL_Graph *graph = rl_graph_create(map, passable_f, 1);
+    RL_Graph *graph = rl_graph_create(map);
     rl_dijkstra_score(graph, start, distance_f);
 
     return graph;
@@ -2116,7 +2251,7 @@ RL_Graph *rl_dijkstra_create(const RL_Map *map,
 /* default scorer function for Dijkstra - this simply accepts a RL_DistanceFun as context and adds the current nodes */
 /* score to the result of the distance function */
 struct rl_score_context { RL_DistanceFun fun; };
-float rl_dijkstra_default_score_f(RL_GraphNode *current, RL_GraphNode *neighbor, void *context)
+float rl_dijkstra_default_score_f(const RL_GraphNode *current, const RL_GraphNode *neighbor, void *context)
 {
     struct rl_score_context *distance_f = (struct rl_score_context*) context;
 
@@ -2132,8 +2267,8 @@ void rl_dijkstra_score(RL_Graph *graph, RL_Point start, RL_DistanceFun distance_
 
 void rl_dijkstra_score_ex(RL_Graph *graph, RL_Point start, RL_ScoreFun score_f, void *score_context)
 {
-    rl_assert(graph);
-    rl_assert(score_f);
+    RL_ASSERT(graph);
+    RL_ASSERT(score_f);
     if (graph == NULL) return;
 
     RL_GraphNode *current;
@@ -2174,15 +2309,15 @@ void rl_graph_destroy(RL_Graph *graph)
 {
     if (graph) {
         if (graph->nodes) {
-            rl_free(graph->nodes);
+            RL_FREE(graph->nodes);
         }
-        rl_free(graph);
+        RL_FREE(graph);
     }
 }
 
 bool rl_graph_is_scored(const RL_Graph *graph, RL_Point point)
 {
-    const RL_GraphNode *n = rl_graph_node(graph, point);
+    RL_GraphNode *n = rl_graph_node(graph, point);
     if (n) {
         return n->score < FLT_MAX;
     } else {
@@ -2190,18 +2325,33 @@ bool rl_graph_is_scored(const RL_Graph *graph, RL_Point point)
     }
 }
 
-const RL_GraphNode *rl_graph_node(const RL_Graph *graph, RL_Point point)
+RL_GraphNode *rl_graph_node(const RL_Graph *graph, RL_Point point)
 {
-    rl_assert(graph);
+    RL_ASSERT(graph);
     if (graph == NULL) return NULL;
     for (unsigned int i=0; i<graph->length; ++i) {
-        const RL_GraphNode *n = &graph->nodes[i];
-        rl_assert(n);
+        RL_GraphNode *n = &graph->nodes[i];
+        RL_ASSERT(n);
         if (n && n->point.x == point.x && n->point.y == point.y) {
             return n;
         }
     }
     return NULL;
+}
+
+RL_GraphNode *rl_graph_lowest_scored_neighbor(const RL_Graph *graph, const RL_GraphNode *node)
+{
+    RL_ASSERT(graph);
+    if (graph == NULL) return NULL;
+    RL_GraphNode *lowest_neighbor = NULL;
+    for (size_t i=0; i<node->neighbors_length; i++) {
+        RL_GraphNode *neighbor = node->neighbors[i];
+        if (!lowest_neighbor || neighbor->score < lowest_neighbor->score) {
+            lowest_neighbor = neighbor;
+        }
+    }
+    if (lowest_neighbor->score == FLT_MAX) return NULL;
+    return lowest_neighbor;
 }
 #endif /* RL_ENABLE_PATHFINDING */
 
@@ -2210,19 +2360,19 @@ RL_FOV *rl_fov_create(unsigned int width, unsigned int height)
 {
     RL_FOV *fov;
     unsigned char *memory;
-    rl_assert(width > 0 && height > 0);
-    rl_assert(width != UINT_MAX && !(width > UINT_MAX / height)); /* check for overflow */
+    RL_ASSERT(width > 0 && height > 0);
+    RL_ASSERT(width != UINT_MAX && !(width > UINT_MAX / height)); /* check for overflow */
     fov = NULL;
     /* allocate all the memory we need at once */
-    memory = (unsigned char*) rl_calloc(sizeof(*fov) + sizeof(*fov->visibility)*width*height, 1);
-    rl_assert(memory);
+    memory = (unsigned char*) RL_CALLOC(sizeof(*fov) + sizeof(*fov->visibility)*width*height, 1);
+    RL_ASSERT(memory);
     if (memory == NULL) return NULL;
     fov = (RL_FOV*) memory;
     fov->width = width;
     fov->height = height;
     fov->visibility = (RL_Byte*) (memory + sizeof(*fov));
-    rl_assert(fov);
-    rl_assert(fov->visibility);
+    RL_ASSERT(fov);
+    RL_ASSERT(fov->visibility);
 
     return fov;
 }
@@ -2230,7 +2380,7 @@ RL_FOV *rl_fov_create(unsigned int width, unsigned int height)
 void rl_fov_destroy(RL_FOV *fov)
 {
     if (fov) {
-        rl_free(fov);
+        RL_FREE(fov);
     }
 }
 
@@ -2241,12 +2391,13 @@ typedef struct {
 
 /* adapted from: https://www.adammil.net/blog/v125_Roguelike_Vision_Algorithms.html#shadowcode (public domain) */
 /* also see: https://www.roguebasin.com/index.php/FOV_using_recursive_shadowcasting */
-void rl_fov_calculate_recursive(void *map, unsigned int origin_x, unsigned int origin_y, RL_IsInRangeFun in_range_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f, unsigned int octant, float x, RL_Slope top, RL_Slope bottom)
+void rl_fov_calculate_recursive(void *map, unsigned int origin_x, unsigned int origin_y, RL_IsInRangeFun in_range_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f, unsigned int octant, float original_x, RL_Slope top, RL_Slope bottom)
 {
-    rl_assert(in_range_f);
-    rl_assert(opaque_f);
-    rl_assert(mark_visible_f);
-    for(; x < RL_MAX_RECURSION; x++)
+    int x;
+    RL_ASSERT(in_range_f);
+    RL_ASSERT(opaque_f);
+    RL_ASSERT(mark_visible_f);
+    for(x = original_x; x < RL_MAX_RECURSION; x++)
     {
         /* compute the Y coordinates where the top vector leaves the column (on the right) and where the bottom vector */
         /* enters the column (on the left). this equals (x+0.5)*top+0.5 and (x-0.5)*bottom+0.5 respectively, which can */
@@ -2279,6 +2430,10 @@ void rl_fov_calculate_recursive(void *map, unsigned int origin_x, unsigned int o
                 } else {
                     mark_visible_f(tx, ty, map);
                 }
+            }
+
+            if (x == original_x && !inRange) {
+                return;
             }
 
             isOpaque = !inRange || opaque_f(tx, ty, map);
@@ -2327,19 +2482,9 @@ void rl_fovmap_mark_visible_f(unsigned int x, unsigned int y, void *context)
 bool rl_fovmap_opaque_f(unsigned int x, unsigned int y, void *context)
 {
     struct RL_FOVMap *map = (struct RL_FOVMap*) context;
-    if (!rl_map_in_bounds(map->map, x, y)) {
-        return true;
-    }
-    if (rl_map_tile_is(map->map, x, y, RL_TileDoor)) {
-        /* doors are opaque by default, unless they are open */
-        return true;
-    }
-    return !rl_map_is_passable(map->map, x, y);
+    return RL_OPAQUE_F(map->map, x, y);
 }
 
-#ifndef RL_FOV_DISTANCE_F
-#define RL_FOV_DISTANCE_F rl_distance_euclidian
-#endif
 bool rl_fovmap_in_range_f(unsigned int x, unsigned int y, void *context)
 {
     struct RL_FOVMap *map = (struct RL_FOVMap*) context;
@@ -2396,7 +2541,7 @@ void rl_fov_calculate_ex(void *context, unsigned int x, unsigned int y, RL_IsInR
 
 bool rl_fov_is_visible(const RL_FOV *map, unsigned int x, unsigned int y)
 {
-    rl_assert(map);
+    RL_ASSERT(map);
     if (map == NULL) return false;
     if (!rl_map_in_bounds((const RL_Map*) map, x, y)) {
         return false;
@@ -2406,7 +2551,7 @@ bool rl_fov_is_visible(const RL_FOV *map, unsigned int x, unsigned int y)
 
 bool rl_fov_is_seen(const RL_FOV *map, unsigned int x, unsigned int y)
 {
-    rl_assert(map);
+    RL_ASSERT(map);
     if (map == NULL) return false;
     if (!rl_map_in_bounds((const RL_Map*) map, x, y)) {
         return false;

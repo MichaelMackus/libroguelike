@@ -9,9 +9,9 @@ all: $(BINS) roguelike.o
 
 roguelike.o: ../roguelike.h
 	$(CC) $(CFLAGS) -x c -c -DRL_IMPLEMENTATION -o $@ $<
-player_movement: player_movement.c ../roguelike.h
+dungeon: dungeon.c ../roguelike.h
 	$(CC) $(CFLAGS) -o $@ $< $(LIBFLAGS) $(LIBFLAGS_CURSES)
-simple: simple.c ../roguelike.h
+town_sewers: town_sewers.c ../roguelike.h
 	$(CC) $(CFLAGS) -o $@ $< $(LIBFLAGS) $(LIBFLAGS_CURSES)
 c89: c89.c ../roguelike.h
 	$(CC) $(CFLAGS) -std=c89 -o $@ $< $(LIBFLAGS) $(LIBFLAGS_CURSES)
