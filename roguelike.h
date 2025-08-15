@@ -117,6 +117,8 @@
  *  RL_MAPGEN_BSP_RANDOMISE_ROOM_LOC  Set this to 0 to disable randomizing room locations within bsp (used in rl_mapgen_bsp - defaults to 1)
  *  RL_ENABLE_PATHFINDING             Set this to 0 to disable pathfinding functionality (defaults to 1)
  *  RL_ENABLE_FOV                     Set this to 0 to disable field of view functionality (defaults to 1)
+ *  RL_IS_PASSABLE                    Passable tile logic. Macro function - first argument to the macro is the tile, second is x, third is y.
+ *  RL_IS_OPAQUE                      Opaque tile logic. Macro function - first argument to the macro is the tile, second is x, third is y.
  *  RL_PASSABLE_F                     Set this to your default passable function (defaults to rl_map_is_passable).
  *  RL_OPAQUE_F                       Set this to your default opaque function (defaults to rl_map_is_opaque).
  *  RL_WALL_F                         Set this to your default is_wall function (defaults to rl_map_is_wall).
@@ -617,6 +619,15 @@ unsigned int rl_rng_generate(unsigned int min, unsigned int max);
 #define RL_ENABLE_FOV 1
 #endif
 
+/* convenience macro for custom passable tile logic (for mapgen & pathfinding) */
+#ifndef RL_IS_PASSABLE
+#define RL_IS_PASSABLE(t, x, y) (t == RL_TileRoom || t == RL_TileCorridor || t == RL_TileDoor || t == RL_TileDoorOpen)
+#endif
+/* convenience macro for custom opaque tile logic (for FOV) */
+#ifndef RL_IS_OPAQUE
+#define RL_IS_OPAQUE(t, x, y) (t == RL_TileDoor || !RL_IS_PASSABLE(t, x, y))
+#endif
+
 #ifndef RL_PASSABLE_F
 #define RL_PASSABLE_F rl_map_is_passable
 #endif
@@ -693,10 +704,7 @@ bool rl_map_in_bounds(const RL_Map *map, unsigned int x, unsigned int y)
 bool rl_map_is_passable(const RL_Map *map, unsigned int x, unsigned int y)
 {
     if (rl_map_in_bounds(map, x, y)) {
-        return map->tiles[y * map->width + x] == RL_TileRoom ||
-               map->tiles[y * map->width + x] == RL_TileCorridor ||
-               map->tiles[y * map->width + x] == RL_TileDoor ||
-               map->tiles[y * map->width + x] == RL_TileDoorOpen;
+        return RL_IS_PASSABLE(map->tiles[y * map->width + x], x, y);
     }
 
     return 0;
@@ -707,11 +715,8 @@ bool rl_map_is_opaque(const RL_Map *map, unsigned int x, unsigned int y)
     if (!rl_map_in_bounds(map, x, y)) {
         return true;
     }
-    if (rl_map_tile_is(map, x, y, RL_TileDoor)) {
-        /* doors are opaque by default, unless they are open */
-        return true;
-    }
-    return !RL_PASSABLE_F(map, x, y);
+
+    return RL_IS_OPAQUE(map->tiles[y * map->width + x], x, y);
 }
 
 RL_Byte *rl_map_tile(const RL_Map *map, unsigned int x, unsigned int y)
