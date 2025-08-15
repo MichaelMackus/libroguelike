@@ -9,6 +9,8 @@ all: $(BINS) roguelike.o
 
 roguelike.o: ../roguelike.h
 	$(CC) $(CFLAGS) -x c -c -DRL_IMPLEMENTATION -o $@ $<
+custom: custom.c ../roguelike.h
+	$(CC) $(CFLAGS) -o $@ $< $(LIBFLAGS) $(LIBFLAGS_CURSES)
 dungeon: dungeon.c ../roguelike.h
 	$(CC) $(CFLAGS) -o $@ $< $(LIBFLAGS) $(LIBFLAGS_CURSES)
 town_sewers: town_sewers.c ../roguelike.h
