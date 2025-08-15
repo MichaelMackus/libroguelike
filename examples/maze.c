@@ -3,6 +3,7 @@
 #include "../roguelike.h"
 #include <stdio.h>
 #include <time.h>
+#include <locale.h>
 
 #define WIDTH 80
 #define HEIGHT 30
@@ -11,6 +12,7 @@ int main(int argc, const char **argv)
 {
     unsigned long seed = time(0);
 
+    setlocale(LC_ALL, "");
     if (argc > 1) {
         seed = atol(argv[1]);
     }
@@ -50,17 +52,35 @@ int main(int argc, const char **argv)
         for (unsigned int x=0; x<map->width; ++x) {
             RL_Tile t = map->tiles[x + y*map->width];
             if (t == RL_TileRock) {
-                char ch;
-                int wall = rl_map_wall(map, x, y);
-                if (wall & RL_WallToEast || wall & RL_WallToWest)
-                    ch = '-';
-                else if (wall & RL_WallToSouth || wall & RL_WallToNorth)
-                    ch = '|';
-                else if (wall)
+                wchar_t ch;
+                long connections = rl_map_wall(map, x, y);
+                if (connections & RL_WallToEast && connections & RL_WallToWest && connections & RL_WallToNorth && connections & RL_WallToSouth)
+                    ch = L'┼';
+                else if (connections & RL_WallToEast && connections & RL_WallToWest && connections & RL_WallToSouth)
+                    ch = L'┬';
+                else if (connections & RL_WallToEast && connections & RL_WallToWest && connections & RL_WallToNorth)
+                    ch = L'┴';
+                else if (connections & RL_WallToNorth && connections & RL_WallToSouth && connections & RL_WallToWest)
+                    ch = L'┤';
+                else if (connections & RL_WallToNorth && connections & RL_WallToSouth && connections & RL_WallToEast)
+                    ch = L'├';
+                else if (connections & RL_WallToSouth && connections & RL_WallToEast)
+                    ch = L'┌';
+                else if (connections & RL_WallToNorth && connections & RL_WallToEast)
+                    ch = L'└';
+                else if (connections & RL_WallToNorth && connections & RL_WallToWest)
+                    ch = L'┘';
+                else if (connections & RL_WallToSouth && connections & RL_WallToWest)
+                    ch = L'┐';
+                else if (connections & RL_WallToEast || connections & RL_WallToWest)
+                    ch = L'─';
+                else if (connections & RL_WallToNorth || connections & RL_WallToSouth)
+                    ch = L'│';
+                else if (connections)
                     ch = '0';
                 else
                     ch = ' ';
-                printf("%c", ch);
+                printf("%lc", ch);
             } else
                 printf("%c", '.');
         }
