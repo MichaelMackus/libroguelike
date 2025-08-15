@@ -119,6 +119,7 @@
  *  RL_ENABLE_FOV                     Set this to 0 to disable field of view functionality (defaults to 1)
  *  RL_IS_PASSABLE                    Passable tile logic. Macro function - first argument to the macro is the tile, second is x, third is y.
  *  RL_IS_OPAQUE                      Opaque tile logic. Macro function - first argument to the macro is the tile, second is x, third is y.
+ *  RL_IS_WALL_TILE                   Wall tile logic, for checking if this tile can connect to other walls. Macro function - first argument to the macro is the tile, second is x, third is y.
  *  RL_PASSABLE_F                     Set this to your default passable function (defaults to rl_map_is_passable).
  *  RL_OPAQUE_F                       Set this to your default opaque function (defaults to rl_map_is_opaque).
  *  RL_WALL_F                         Set this to your default is_wall function (defaults to rl_map_is_wall).
@@ -627,6 +628,10 @@ unsigned int rl_rng_generate(unsigned int min, unsigned int max);
 #ifndef RL_IS_OPAQUE
 #define RL_IS_OPAQUE(t, x, y) (t == RL_TileDoor || !RL_IS_PASSABLE(t, x, y))
 #endif
+/* convenience macro for custom wall tile logic (for connections) */
+#ifndef RL_IS_WALL_TILE
+#define RL_IS_WALL_TILE(t, x, y) (!RL_IS_PASSABLE(t,x,y) || t == RL_TileDoor || t == RL_TileDoorOpen)
+#endif
 
 #ifndef RL_PASSABLE_F
 #define RL_PASSABLE_F rl_map_is_passable
@@ -732,7 +737,7 @@ bool rl_map_is_wall(const RL_Map *map, unsigned int x, unsigned int y)
 {
     if (!rl_map_in_bounds(map, x, y))
         return 0;
-    if (!RL_PASSABLE_F(map, x, y) || rl_map_tile_is(map, x, y, RL_TileDoor) || rl_map_tile_is(map, x, y, RL_TileDoorOpen)) {
+    if (RL_IS_WALL_TILE(map->tiles[x + y*map->width], x, y)) {
         return RL_PASSABLE_F(map, x, y + 1) ||
                RL_PASSABLE_F(map, x, y - 1) ||
                RL_PASSABLE_F(map, x + 1, y) ||
@@ -747,43 +752,18 @@ bool rl_map_is_wall(const RL_Map *map, unsigned int x, unsigned int y)
 }
 
 /* checks if target tile is connecting from source (e.g. they can reach it) */
-bool rl_map_is_connecting(const RL_Map *map, unsigned int from_x, unsigned int from_y, unsigned int target_x, unsigned int target_y)
-{
-    int x, y, x2, y2;
-    RL_ASSERT(target_x < INT_MAX && target_y < INT_MAX && from_y < INT_MAX && target_y < INT_MAX);
-    /* check that from passable neighbors can connect to target */
-    for (x = (int)from_x - 1; x <= (int)from_x + 1; ++x) {
-        for (y = (int)from_y - 1; y <= (int)from_y + 1; ++y) {
-            if (!rl_map_in_bounds(map, x, y) || !RL_PASSABLE_F(map, x, y))
-                continue;
-            if (rl_map_tile_is(map, x, y, RL_TileDoor) || rl_map_tile_is(map, x, y, RL_TileDoorOpen))
-                continue;
-            /* this is a passable neighbor - check its neighbors to see if it can reach target */
-            for (x2 = x - 1; x2 <= x + 1; ++x2) {
-                for (y2 = y - 1; y2 <= y + 1; ++y2) {
-                    if (!rl_map_in_bounds(map, x2, y2)) continue;
-                    if ((unsigned int) x2 == target_x && (unsigned int) y2 == target_y)
-                        return true;
-                }
-            }
-        }
-    }
-
-    return false;
-}
-
 RL_Byte rl_map_wall(const RL_Map *map, unsigned int x, unsigned int y)
 {
     RL_Byte mask = 0;
     if (!RL_WALL_F(map, x, y))
         return mask;
-    if (RL_WALL_F(map, x + 1, y    ) && rl_map_is_connecting(map, x, y, x + 1, y))
+    if (RL_WALL_F(map, x + 1, y    ) && (!RL_WALL_F(map, x, y - 1) || !RL_WALL_F(map, x, y + 1) || !RL_WALL_F(map, x + 1, y - 1) || !RL_WALL_F(map, x + 1, y + 1)))
         mask |= RL_WallToEast;
-    if (RL_WALL_F(map, x - 1, y    ) && rl_map_is_connecting(map, x, y, x - 1, y))
+    if (RL_WALL_F(map, x - 1, y    ) && (!RL_WALL_F(map, x, y - 1) || !RL_WALL_F(map, x, y + 1) || !RL_WALL_F(map, x - 1, y - 1) || !RL_WALL_F(map, x - 1, y + 1)))
         mask |= RL_WallToWest;
-    if (RL_WALL_F(map, x,     y - 1) && rl_map_is_connecting(map, x, y, x,     y - 1))
+    if (RL_WALL_F(map, x    , y - 1) && (!RL_WALL_F(map, x + 1, y - 1) || !RL_WALL_F(map, x - 1, y - 1) || !RL_WALL_F(map, x + 1, y) || !RL_WALL_F(map, x - 1, y)))
         mask |= RL_WallToNorth;
-    if (RL_WALL_F(map, x,     y + 1) && rl_map_is_connecting(map, x, y, x,     y + 1))
+    if (RL_WALL_F(map, x    , y + 1) && (!RL_WALL_F(map, x + 1, y + 1) || !RL_WALL_F(map, x - 1, y + 1) || !RL_WALL_F(map, x + 1, y) || !RL_WALL_F(map, x - 1, y)))
         mask |= RL_WallToSouth;
     return mask ? mask : RL_WallOther;
 }
