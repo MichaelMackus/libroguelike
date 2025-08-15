@@ -860,7 +860,7 @@ RL_BSP *rl_bsp_create(unsigned int width, unsigned int height)
     RL_BSP *bsp;
 
     RL_ASSERT(width > 0 && height > 0);
-    bsp = (RL_BSP*) RL_CALLOC(sizeof(*bsp), 1);
+    bsp = (RL_BSP*) RL_CALLOC(1, sizeof(*bsp));
     if (bsp == NULL) return NULL;
     bsp->width = width;
     bsp->height = height;
@@ -2035,7 +2035,7 @@ RL_Graph *rl_graph_floodfill_largest_area(const RL_Map *map)
 {
     RL_ASSERT(map);
     if (map == NULL) return NULL;
-    int *visited = (int*) RL_CALLOC(sizeof(*visited), map->width * map->height);
+    int *visited = (int*) RL_CALLOC(map->width * map->height, sizeof(*visited));
     RL_ASSERT(visited);
     if (visited == NULL) return NULL;
     RL_Graph *floodfill = NULL; /* largest floodfill */
@@ -2190,7 +2190,7 @@ RL_Graph *rl_graph_create_ex(const RL_Map *map, RL_PassableFun passable_f, bool 
     RL_ASSERT(graph);
     if (graph == NULL) return NULL;
     size_t length = map->width * map->height;
-    RL_GraphNode *nodes = (RL_GraphNode*) RL_CALLOC(sizeof(*nodes), length);
+    RL_GraphNode *nodes = (RL_GraphNode*) RL_CALLOC(length, sizeof(*nodes));
     RL_ASSERT(nodes != NULL);
     if (nodes == NULL) {
         RL_FREE(graph);
