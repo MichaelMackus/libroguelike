@@ -4,8 +4,8 @@
  * Example with custom tiles "." is floor "#" is wall and "+" is door
  */
 
-#define RL_IS_PASSABLE(t, x, y) t == '.' || t == '+' || t == '>'
-#define RL_IS_OPAQUE(t, x, y)   t == '#' || t == '+' || t == ' '
+#define RL_IS_PASSABLE(t, x, y) (t == '.' || t == '+' || t == '>')
+#define RL_IS_OPAQUE(t, x, y)   (t == '#' || t == '+' || t == ' ')
 
 #include "../roguelike.h"
 #include <stdio.h>
