@@ -751,19 +751,30 @@ bool rl_map_is_wall(const RL_Map *map, unsigned int x, unsigned int y)
     return 0;
 }
 
+static bool rl_map_wall_connects_ew(const RL_Map *map, unsigned int x, unsigned int y)
+{
+    return (rl_map_in_bounds(map, x, y - 1) && !RL_IS_WALL_TILE(map->tiles[x+(y-1)*map->width], x, y - 1)) || 
+           (rl_map_in_bounds(map, x, y + 1) && !RL_IS_WALL_TILE(map->tiles[x+(y+1)*map->width], x, y + 1));
+}
+static bool rl_map_wall_connects_ns(const RL_Map *map, unsigned int x, unsigned int y)
+{
+    return (rl_map_in_bounds(map, x - 1, y) && !RL_IS_WALL_TILE(map->tiles[(x-1)+y*map->width], x - 1, y)) || 
+           (rl_map_in_bounds(map, x + 1, y) && !RL_IS_WALL_TILE(map->tiles[(x+1)+y*map->width], x + 1, y));
+}
+
 /* checks if target tile is connecting from source (e.g. they can reach it) */
 RL_Byte rl_map_wall(const RL_Map *map, unsigned int x, unsigned int y)
 {
     RL_Byte mask = 0;
     if (!RL_WALL_F(map, x, y))
         return mask;
-    if (RL_WALL_F(map, x + 1, y    ) && (!RL_WALL_F(map, x, y - 1) || !RL_WALL_F(map, x, y + 1) || !RL_WALL_F(map, x + 1, y - 1) || !RL_WALL_F(map, x + 1, y + 1)))
+    if ((rl_map_in_bounds(map, x + 1, y    ) && RL_IS_WALL_TILE(map->tiles[(x+1)+y*map->width], x + 1, y    )) && (rl_map_wall_connects_ew(map, x, y    ) || rl_map_wall_connects_ew(map, x + 1, y)))
         mask |= RL_WallToEast;
-    if (RL_WALL_F(map, x - 1, y    ) && (!RL_WALL_F(map, x, y - 1) || !RL_WALL_F(map, x, y + 1) || !RL_WALL_F(map, x - 1, y - 1) || !RL_WALL_F(map, x - 1, y + 1)))
+    if ((rl_map_in_bounds(map, x - 1, y    ) && RL_IS_WALL_TILE(map->tiles[(x-1)+y*map->width], x - 1, y    )) && (rl_map_wall_connects_ew(map, x, y    ) || rl_map_wall_connects_ew(map, x - 1, y)))
         mask |= RL_WallToWest;
-    if (RL_WALL_F(map, x    , y - 1) && (!RL_WALL_F(map, x + 1, y - 1) || !RL_WALL_F(map, x - 1, y - 1) || !RL_WALL_F(map, x + 1, y) || !RL_WALL_F(map, x - 1, y)))
+    if ((rl_map_in_bounds(map, x    , y - 1) && RL_IS_WALL_TILE(map->tiles[x+(y-1)*map->width], x    , y - 1)) && (rl_map_wall_connects_ns(map, x, y    ) || rl_map_wall_connects_ns(map, x    , y - 1)))
         mask |= RL_WallToNorth;
-    if (RL_WALL_F(map, x    , y + 1) && (!RL_WALL_F(map, x + 1, y + 1) || !RL_WALL_F(map, x - 1, y + 1) || !RL_WALL_F(map, x + 1, y) || !RL_WALL_F(map, x - 1, y)))
+    if ((rl_map_in_bounds(map, x    , y + 1) && RL_IS_WALL_TILE(map->tiles[x+(y+1)*map->width], x    , y + 1)) && (rl_map_wall_connects_ns(map, x, y    ) || rl_map_wall_connects_ns(map, x    , y + 1)))
         mask |= RL_WallToSouth;
     return mask ? mask : RL_WallOther;
 }
