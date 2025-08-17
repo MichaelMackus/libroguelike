@@ -99,7 +99,7 @@
  *  RL_GraphNode *node = rl_graph_node(graph, start);
  *  // Then, you "roll downhill" from the start point
  *  if (node != NULL) {
- *    RL_GraphNode *lowest_neighbor = rl_graph_lowest_scored_neighbor(graph, node);
+ *    RL_GraphNode *lowest_neighbor = rl_graph_node_lowest_neighbor(node);
  *    // The next point in the path is lowest_neighbor->point
  *    if (lowest_neighbor) move_player(lowest_neighbor->point);
  *    ...
@@ -532,7 +532,10 @@ RL_GraphNode *rl_graph_node(const RL_Graph *graph, RL_Point point);
 
 /* Returns the lowest scored neighbor within a graph if it exists - returns NULL if the lowest scored neighbor is scored
  * with FLT_MAX (meaning it is unscored). */
-RL_GraphNode *rl_graph_lowest_scored_neighbor(const RL_Graph *graph, const RL_GraphNode *node);
+RL_GraphNode *rl_graph_node_lowest_neighbor(const RL_GraphNode *node);
+
+/* Sort node neighbors based on score - lowest score will be at node->neighbors[0] */
+void rl_graph_node_sort_neighbors(RL_GraphNode *node);
 
 /**
  * FOV - disable with #define RL_ENABLE_FOV 0
@@ -2139,7 +2142,7 @@ RL_Path *rl_path_create_from_graph(const RL_Graph *graph, RL_Point start)
         return path;
     }
     while (node != NULL && node->score > 0) {
-        node = rl_graph_lowest_scored_neighbor(graph, node);
+        node = rl_graph_node_lowest_neighbor(node);
         if (node == NULL) break;
         path->next = rl_path(node->point);
         RL_ASSERT(path->next);
@@ -2341,10 +2344,10 @@ RL_GraphNode *rl_graph_node(const RL_Graph *graph, RL_Point point)
     return NULL;
 }
 
-RL_GraphNode *rl_graph_lowest_scored_neighbor(const RL_Graph *graph, const RL_GraphNode *node)
+RL_GraphNode *rl_graph_node_lowest_neighbor(const RL_GraphNode *node)
 {
-    RL_ASSERT(graph);
-    if (graph == NULL) return NULL;
+    RL_ASSERT(node);
+    if (node == NULL) return NULL;
     RL_GraphNode *lowest_neighbor = NULL;
     for (size_t i=0; i<node->neighbors_length; i++) {
         RL_GraphNode *neighbor = node->neighbors[i];
@@ -2354,6 +2357,21 @@ RL_GraphNode *rl_graph_lowest_scored_neighbor(const RL_Graph *graph, const RL_Gr
     }
     if (lowest_neighbor->score == FLT_MAX) return NULL;
     return lowest_neighbor;
+}
+
+int rl_graph_compare_neighbors(const void *a, const void *b)
+{
+    RL_GraphNode **node_a = (RL_GraphNode**) a;
+    RL_GraphNode **node_b = (RL_GraphNode**) b;
+
+    if ((*node_a)->score < (*node_b)->score) return -1;
+    if ((*node_a)->score > (*node_b)->score) return 1;
+    return 0;
+}
+
+void rl_graph_node_sort_neighbors(RL_GraphNode *node)
+{
+    qsort(node->neighbors, node->neighbors_length, sizeof(*node->neighbors), rl_graph_compare_neighbors);
 }
 #endif /* RL_ENABLE_PATHFINDING */
 
