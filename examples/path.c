@@ -23,7 +23,7 @@ int main(void)
     RL_Point start = { rl_rng_generate(0, MAP_WIDTH - 1), rl_rng_generate(0, MAP_HEIGHT - 1) };
     RL_Point end = { rl_rng_generate(0, MAP_WIDTH - 1), rl_rng_generate(0, MAP_HEIGHT - 1) };
     printf("S: (%d, %d) | E: (%d, %d)\n", (int)start.x, (int)start.y, (int)end.x, (int)end.y);
-    RL_Graph *graph = rl_graph_create_ex(map, NULL, false);
+    RL_Graph *graph = rl_graph_create_ex(map, map, NULL, false);
     rl_dijkstra_score(graph, end, rl_distance_manhattan);
     RL_Path *path = rl_path_create_from_graph(graph, start);
     while ((path = rl_path_walk(path))) {
@@ -36,7 +36,7 @@ int main(void)
 
     // draw a path allowing diagonals using euclidian distance
     int offset_y = MAP_HEIGHT + 2;
-    graph = rl_graph_create_ex(map, NULL, true);
+    graph = rl_graph_create_ex(map, map, NULL, true);
     rl_dijkstra_score(graph, end, rl_distance_euclidian);
     path = rl_path_create_from_graph(graph, start);
     while ((path = rl_path_walk(path))) {

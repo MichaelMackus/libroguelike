@@ -466,7 +466,7 @@ float rl_distance_chebyshev(RL_Point node, RL_Point end);
 typedef float (*RL_DistanceFun)(RL_Point from, RL_Point to);
 
 /* Custom passable function for pathfinding. Return 0 to prevent neighbor from being included in graph. */
-typedef bool (*RL_PassableFun)(const RL_Map *map, unsigned int x, unsigned int y);
+typedef bool (*RL_PassableFun)(void *context, unsigned int x, unsigned int y);
 
 /* Custom score function for pathfinding - most users won't need this, but it gives flexibility in weighting the
  * Dijkstra graph. Note that Dijkstra expects you to add the current node's score to the newly calculated score. */
@@ -519,7 +519,7 @@ RL_Graph *rl_graph_floodfill_largest_area(const RL_Map *map);
 RL_Graph *rl_graph_create(const RL_Map *map);
 
 /* Create an unscored graph based on the 2d map. Make sure to call rl_graph_destroy when finished. */
-RL_Graph *rl_graph_create_ex(const RL_Map *map, RL_PassableFun passable_f, bool allow_diagonal_neighbors);
+RL_Graph *rl_graph_create_ex(const RL_Map *map, void *context, RL_PassableFun passable_f, bool allow_diagonal_neighbors);
 
 /* Frees the graph & internal memory. */
 void rl_graph_destroy(RL_Graph *graph);
@@ -753,12 +753,12 @@ bool rl_map_is_wall(const RL_Map *map, unsigned int x, unsigned int y)
 
 static bool rl_map_wall_connects_ew(const RL_Map *map, unsigned int x, unsigned int y)
 {
-    return (rl_map_in_bounds(map, x, y - 1) && !RL_IS_WALL_TILE(map->tiles[x+(y-1)*map->width], x, y - 1)) || 
+    return (rl_map_in_bounds(map, x, y - 1) && !RL_IS_WALL_TILE(map->tiles[x+(y-1)*map->width], x, y - 1)) ||
            (rl_map_in_bounds(map, x, y + 1) && !RL_IS_WALL_TILE(map->tiles[x+(y+1)*map->width], x, y + 1));
 }
 static bool rl_map_wall_connects_ns(const RL_Map *map, unsigned int x, unsigned int y)
 {
-    return (rl_map_in_bounds(map, x - 1, y) && !RL_IS_WALL_TILE(map->tiles[(x-1)+y*map->width], x - 1, y)) || 
+    return (rl_map_in_bounds(map, x - 1, y) && !RL_IS_WALL_TILE(map->tiles[(x-1)+y*map->width], x - 1, y)) ||
            (rl_map_in_bounds(map, x + 1, y) && !RL_IS_WALL_TILE(map->tiles[(x+1)+y*map->width], x + 1, y));
 }
 
@@ -1369,7 +1369,7 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
         /* connect each floodfill with another random one */
         if (heap->len > 1) {
             int i;
-            RL_Graph *graph = rl_graph_create_ex(map, NULL, 0);
+            RL_Graph *graph = rl_graph_create_ex(map, map, NULL, 0);
             RL_ASSERT(graph);
             for (i=0; i<heap->len; ++i) {
                 RL_Graph *floodfill_target;
@@ -1958,7 +1958,7 @@ void rl_mapgen_connect_corridors_bsp_recursive(RL_Map *map, RL_BSP *root, bool d
 }
 void rl_mapgen_connect_corridors_bsp(RL_Map *map, RL_BSP *root, bool draw_doors)
 {
-    RL_Graph *graph = rl_graph_create_ex(map, NULL, 0);
+    RL_Graph *graph = rl_graph_create_ex(map, map, NULL, 0);
     RL_ASSERT(graph);
     if (graph) {
         rl_mapgen_connect_corridors_bsp_recursive(map, root, draw_doors, graph);
@@ -1978,7 +1978,7 @@ void rl_mapgen_connect_corridors_randomly(RL_Map *map, RL_BSP *root, bool draw_d
     }
     RL_ASSERT(leftmost_node && rl_bsp_is_leaf(leftmost_node));
     RL_BSP *node = leftmost_node;
-    RL_Graph *graph = rl_graph_create_ex(map, NULL, 0);
+    RL_Graph *graph = rl_graph_create_ex(map, map, NULL, 0);
     RL_ASSERT(graph);
     if (graph == NULL) return;
     while (node) {
@@ -2170,12 +2170,18 @@ void rl_path_destroy(RL_Path *path)
     }
 }
 
-RL_Graph *rl_graph_create(const RL_Map *map)
+bool rl_graph_default_passable_fun(void *context, unsigned int x, unsigned int y)
 {
-    return rl_graph_create_ex(map, RL_PASSABLE_F, true);
+    RL_Map *map = (RL_Map*) context;
+    return RL_PASSABLE_F(map, x, y);
 }
 
-RL_Graph *rl_graph_create_ex(const RL_Map *map, RL_PassableFun passable_f, bool allow_diagonal_neighbors)
+RL_Graph *rl_graph_create(const RL_Map *map)
+{
+    return rl_graph_create_ex(map, (void*) map, rl_graph_default_passable_fun, true);
+}
+
+RL_Graph *rl_graph_create_ex(const RL_Map *map, void *context, RL_PassableFun passable_f, bool allow_diagonal_neighbors)
 {
     RL_Graph *graph = (RL_Graph*) RL_MALLOC(sizeof(*graph));
     RL_ASSERT(graph);
@@ -2214,7 +2220,7 @@ RL_Graph *rl_graph_create_ex(const RL_Map *map, RL_PassableFun passable_f, bool 
             neighbor_coords[7].x = (int)x - 1;
             neighbor_coords[7].y = (int)y - 1;
             for (int i=0; i<8; i++) {
-                if (passable_f && !passable_f(map, neighbor_coords[i].x, neighbor_coords[i].y))
+                if (passable_f && !passable_f(context, neighbor_coords[i].x, neighbor_coords[i].y))
                     continue;
                 if (!rl_map_in_bounds(map, neighbor_coords[i].x, neighbor_coords[i].y))
                     continue;
