@@ -521,6 +521,16 @@ RL_Graph *rl_graph_create(const RL_Map *map);
 /* Create an unscored graph based on the 2d map. Make sure to call rl_graph_destroy when finished. */
 RL_Graph *rl_graph_create_ex(const RL_Map *map, void *context, RL_PassableFun passable_f, bool allow_diagonal_neighbors);
 
+/* Reset scores of Dijkstra map */
+void rl_graph_reset(RL_Graph *graph);
+
+/* Add two graphs together, adding their scores */
+/* Note that this assumes the graph lengths are identical */
+void rl_graph_add(RL_Graph *graph, const RL_Graph *graph_b);
+
+/* Multiply the scores of a graph by a coefficient (e.g. to weight a graph) */
+void rl_graph_weight(RL_Graph *graph, float coefficient);
+
 /* Frees the graph & internal memory. */
 void rl_graph_destroy(RL_Graph *graph);
 
@@ -2243,6 +2253,31 @@ RL_Graph *rl_graph_create_ex(const RL_Map *map, void *context, RL_PassableFun pa
     return graph;
 }
 
+void rl_graph_add(RL_Graph *graph, const RL_Graph *graph_b)
+{
+    RL_ASSERT(graph != NULL);
+    RL_ASSERT(graph_b != NULL);
+    RL_ASSERT(graph->length == graph_b->length);
+    for (size_t i=0; i < graph->length; i++) {
+        RL_GraphNode *node = &graph->nodes[i];
+        if (node->score <= FLT_MAX - graph_b->nodes[i].score) {
+            node->score += graph_b->nodes[i].score;
+        } else {
+            node->score = FLT_MAX;
+        }
+    }
+}
+
+void rl_graph_weight(RL_Graph *graph, float coefficient)
+{
+    RL_ASSERT(graph != NULL);
+    RL_ASSERT(coefficient <= 1 && coefficient >= 0);
+    for (size_t i=0; i < graph->length; i++) {
+        RL_GraphNode *node = &graph->nodes[i];
+        node->score *= coefficient;
+    }
+}
+
 RL_Graph *rl_dijkstra_create(const RL_Map *map,
                             RL_Point start,
                             RL_DistanceFun distance_f)
@@ -2268,6 +2303,17 @@ void rl_dijkstra_score(RL_Graph *graph, RL_Point start, RL_DistanceFun distance_
     struct { RL_DistanceFun fun; } scorer_context;
     scorer_context.fun = distance_f ? distance_f : rl_distance_simple; /* default to rl_distance_simple */
     rl_dijkstra_score_ex(graph, start, rl_dijkstra_default_score_f, &scorer_context);
+}
+
+void rl_graph_reset(RL_Graph *graph)
+{
+    RL_ASSERT(graph != NULL);
+    if (graph == NULL) return;
+    /* reset scores of dijkstra map */
+    for (size_t i=0; i < graph->length; i++) {
+        RL_GraphNode *node = &graph->nodes[i];
+        node->score = FLT_MAX;
+    }
 }
 
 void rl_dijkstra_score_ex(RL_Graph *graph, RL_Point start, RL_ScoreFun score_f, void *score_context)
@@ -2561,7 +2607,6 @@ void rl_fov_calculate_ex(void *context, unsigned int x, unsigned int y, RL_IsInR
 
 bool rl_fov_is_visible(const RL_FOV *map, unsigned int x, unsigned int y)
 {
-    RL_ASSERT(map);
     if (map == NULL) return false;
     if (!rl_map_in_bounds((const RL_Map*) map, x, y)) {
         return false;
@@ -2571,7 +2616,6 @@ bool rl_fov_is_visible(const RL_FOV *map, unsigned int x, unsigned int y)
 
 bool rl_fov_is_seen(const RL_FOV *map, unsigned int x, unsigned int y)
 {
-    RL_ASSERT(map);
     if (map == NULL) return false;
     if (!rl_map_in_bounds((const RL_Map*) map, x, y)) {
         return false;
