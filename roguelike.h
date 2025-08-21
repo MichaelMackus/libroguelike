@@ -117,6 +117,7 @@
  *  RL_MAPGEN_BSP_RANDOMISE_ROOM_LOC  Set this to 0 to disable randomizing room locations within bsp (used in rl_mapgen_bsp - defaults to 1)
  *  RL_ENABLE_PATHFINDING             Set this to 0 to disable pathfinding functionality (defaults to 1)
  *  RL_ENABLE_FOV                     Set this to 0 to disable field of view functionality (defaults to 1)
+ *  RL_ENABLE_FILE                    Set this to 0 to disable save & load helper functions.
  *  RL_IS_PASSABLE                    Passable tile logic. Macro function - first argument to the macro is the tile, second is x, third is y.
  *  RL_IS_OPAQUE                      Opaque tile logic. Macro function - first argument to the macro is the tile, second is x, third is y.
  *  RL_IS_WALL_TILE                   Wall tile logic, for checking if this tile can connect to other walls. Macro function - first argument to the macro is the tile, second is x, third is y.
@@ -594,7 +595,6 @@ bool rl_fov_is_visible(const RL_FOV *map, unsigned int x, unsigned int y);
 
 /* Checks if a point has been seen within FOV. Make sure to call rl_fov_calculate first. */
 bool rl_fov_is_seen(const RL_FOV *map, unsigned int x, unsigned int y);
-#endif /* RL_ENABLE_FOV */
 
 /**
  * Random number generation
@@ -602,6 +602,18 @@ bool rl_fov_is_seen(const RL_FOV *map, unsigned int x, unsigned int y);
 
 /* Default implementation of RNG using standard library. */
 unsigned int rl_rng_generate(unsigned int min, unsigned int max);
+
+/**
+ * Saving & Loading helper functions - to use these make sure to open the file beforehand in binary mode.
+ *
+ * The file is a FILE pointer (void* so we don't have to depend on stdio).
+ */
+
+bool rl_file_save_map(const RL_Map *data, void *file);
+bool rl_file_load_map(RL_Map **data, void *file);
+bool rl_file_save_fov(const RL_FOV *data, void *file);
+bool rl_file_load_fov(RL_FOV **data, void *file);
+#endif /* RL_ROGUELIKE_H */
 
 #ifdef RL_IMPLEMENTATION
 
@@ -631,6 +643,11 @@ unsigned int rl_rng_generate(unsigned int min, unsigned int max);
 /* define to 0 to disable FOV */
 #ifndef RL_ENABLE_FOV
 #define RL_ENABLE_FOV 1
+#endif
+
+/* define to 0 to disable save & load */
+#ifndef RL_ENABLE_FILE
+#define RL_ENABLE_FILE 1
 #endif
 
 /* convenience macro for custom passable tile logic (for mapgen & pathfinding) */
@@ -2624,6 +2641,109 @@ bool rl_fov_is_seen(const RL_FOV *map, unsigned int x, unsigned int y)
 }
 #endif /* if RL_ENABLE_FOV */
 
+#if RL_ENABLE_FILE
+#include <stdio.h>
+
+bool rl_file_save_map(const RL_Map *data, void *file)
+{
+    int version = 0;
+
+    RL_ASSERT(data != NULL && file != NULL);
+    if (fwrite(&version, sizeof(version), 1, (FILE*) file) < 1) {
+        return false;
+    }
+    if (fwrite(data, sizeof(*data), 1, (FILE*)file) < 1) {
+        return false;
+    }
+    if (fwrite(data->tiles, sizeof(*data->tiles), data->width * data->height, (FILE*) file) < data->width * data->height) {
+        return false;
+    }
+    return true;
+}
+
+bool rl_file_load_map(RL_Map **data, void *file)
+{
+    int version;
+    RL_Map dest;
+
+    RL_ASSERT(data != NULL && file != NULL);
+    if (fread(&version, sizeof(version), 1, (FILE*) file) < 1) {
+        return false;
+    }
+    if (version != 0) {
+        return false;
+    }
+
+    if (fread(&dest, sizeof(dest), 1, (FILE*) file) < 1) {
+        return false;
+    }
+    RL_ASSERT(dest.width > 0 && dest.height > 0);
+    dest.tiles = (RL_Byte*) malloc(sizeof(*dest.tiles) * dest.width * dest.height);
+    RL_ASSERT(dest.tiles != NULL);
+    if (fread(dest.tiles, sizeof(*dest.tiles), dest.width * dest.height, (FILE*) file) < dest.width * dest.height) {
+        return false;
+    }
+
+    *data = (RL_Map*) malloc(sizeof(dest));
+    RL_ASSERT(*data != NULL);
+    *data = (RL_Map*) memcpy(*data, &dest, sizeof(dest));
+    if (data == NULL) {
+        return false;
+    }
+
+    return true;
+}
+
+bool rl_file_save_fov(const RL_FOV *data, void *file)
+{
+    int version = 0;
+
+    RL_ASSERT(data != NULL && file != NULL);
+    if (fwrite(&version, sizeof(version), 1, (FILE*) file) < 1) {
+        return false;
+    }
+    if (fwrite(data, sizeof(*data), 1, (FILE*) file) < 1) {
+        return false;
+    }
+    if (fwrite(data->visibility, sizeof(*data->visibility), data->width * data->height, (FILE*) file) < data->width * data->height) {
+        return false;
+    }
+    return true;
+}
+
+bool rl_file_load_fov(RL_FOV **data, void *file)
+{
+    int version;
+    RL_FOV dest;
+
+    RL_ASSERT(data != NULL && file != NULL);
+    if (fread(&version, sizeof(version), 1, (FILE*) file) < 1) {
+        return false;
+    }
+    if (version != 0) {
+        return false;
+    }
+
+    if (fread(&dest, sizeof(dest), 1, (FILE*) file) < 1) {
+        return false;
+    }
+    RL_ASSERT(dest.width > 0 && dest.height > 0);
+    dest.visibility = (RL_Byte*) malloc(sizeof(*dest.visibility) * dest.width * dest.height);
+    RL_ASSERT(dest.visibility != NULL);
+    if (fread(dest.visibility, sizeof(*dest.visibility), dest.width * dest.height, (FILE*)file) < dest.width * dest.height) {
+        return false;
+    }
+
+    *data = (RL_FOV*) malloc(sizeof(dest));
+    RL_ASSERT(*data != NULL);
+    *data = (RL_FOV*) memcpy(*data, &dest, sizeof(dest));
+    if (data == NULL) {
+        return false;
+    }
+
+    return true;
+}
+#endif /* if RL_ENABLE_FILE */
 
 #endif /* RL_IMPLEMENTATION */
 
