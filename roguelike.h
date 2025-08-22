@@ -2510,7 +2510,7 @@ void rl_fov_calculate_recursive(void *map, unsigned int origin_x, unsigned int o
             if(inRange) {
                 if (RL_FOV_SYMMETRIC && (y != topY || top.Y*(int)x >= top.X*y) && (y != bottomY || bottom.Y*(int)x <= bottom.X*y)) {
                     mark_visible_f(tx, ty, map);
-                } else {
+                } else if (!RL_FOV_SYMMETRIC) {
                     mark_visible_f(tx, ty, map);
                 }
             }
