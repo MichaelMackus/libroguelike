@@ -40,6 +40,7 @@
  * To generate a map, create the map via rl_map_create then call the function
  * with the algorithm you wish to use for mapgen. For example:
  *
+ *   srand(time(0)); // seed the RNG
  *   RL_Map *map = rl_map_create(80, 25);
  *   if (rl_mapgen_bsp(map, RL_MAPGEN_BSP_DEFAULTS) != RL_OK) {
  *     printf("Error occurred during mapgen!\n");
@@ -2595,6 +2596,10 @@ void rl_fov_calculate(RL_FOV *fov, const RL_Map *map, unsigned int x, unsigned i
     if (!rl_map_in_bounds(map, x, y)) {
         return;
     }
+    if (x >= fov->width || y >= fov->height) {
+        return;
+    }
+
     /* set previously visible tiles to seen */
     for (cur_x=0; cur_x<map->width; ++cur_x) {
         for (cur_y=0; cur_y<map->height; ++cur_y) {
