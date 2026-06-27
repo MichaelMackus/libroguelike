@@ -207,11 +207,15 @@ int main(int argc, char **argv)
                     {
                         MEVENT ev;
 #if defined(WIN32) || defined(_WIN32)
-                        if (getmouse() == OK)
+                        while (nc_getmouse(&ev) == OK)
 #else
-                        if (getmouse(&ev) == OK)
+                        while (getmouse(&ev) == OK)
 #endif
                         {
+                            if (player_path) {
+                                rl_path_destroy(player_path);
+                                player_path = NULL;
+                            }
                             // if we have a mouse event & the destination is seen & passable, create a path to the destination
                             RL_Point dest = RL_XY(ev.x, ev.y);
                             if ((rl_fov_is_seen(&fov, dest.x, dest.y) || rl_fov_is_visible(&fov, dest.x, dest.y)) && rl_map_is_passable(&map, dest.x, dest.y)) {
