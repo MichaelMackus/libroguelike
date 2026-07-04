@@ -7,9 +7,14 @@
 #define WIDTH 80
 #define HEIGHT 30
 
-int main(void)
+int main(int argc, char **argv)
 {
-    srand(time(0));
+    unsigned long seed = time(0);
+    if (argc > 1) {
+        seed = atol(argv[1]);
+    }
+    printf("Seed: %ld\n", seed);
+    srand(seed);
 
     RL_Map *map = rl_map_create(WIDTH, HEIGHT);
     if (rl_mapgen_automata(map, RL_MAPGEN_AUTOMATA_DEFAULTS) != RL_OK) {

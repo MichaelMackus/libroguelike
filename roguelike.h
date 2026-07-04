@@ -85,7 +85,7 @@
  * with "rl_path_walk" which frees each part of the path passed, returning the
  * next part of the path; or you can alternatively call "rl_path_destroy".
  *
- *  RL_Path *path = rl_path_create(map, RL_XY(0,0), RL_XY(20,20), rl_distance_euclidian, rl_graph_neighbors_ordinal_passable);
+ *  RL_Path *path = rl_path_create(map, rl_point(0,0), rl_point(20,20), rl_distance_euclidian, rl_graph_neighbors_ordinal_passable);
  *  while ((path = rl_path_walk(path))) { ...  } // frees the path
  *
  * Dijkstra graphs can be created & scored with rl_dijkstra_create or manually
@@ -112,7 +112,10 @@
  *
  *
  *  RL_IMPLEMENTATION                 Define this to compile the library - should only be defined once in one file
- *  RL_MAX_NEIGHBOR_COUNT             Maximum neighbor count for Dijkstra graphs (defaults to 8). Note this is needed in the function definitions - if you override this, you'll have to define it everywhere you include roguelike.h (just make a wrapper).
+ *  RL_MAX_NEIGHBOR_COUNT             Maximum neighbor count for Dijkstra graphs (defaults to 8). Used in the rl_graph_* functions so we avoid malloc'ing every time we need to look up neighbors.
+ *  RL_GRAPH_POINT_STRUCT             Point struct used in rl_graph_* functions. Set to either RL_Point3d or RL_Point2d. You can ignore this unless you want to support 3d pathfinding.
+ *  RL_HEX_FLAT_TOP                   For hex grid pathfinding - set to 1 if you use flat top hexes, otherwise 0 for pointy top hexes.
+ *  RL_HEX_ODD_OFFSET                 For hex grid pathfinding - set to 1 if you offset every *odd* row, otherwise set to 0 if you offset every *even* row.
  *  RL_FOV_SYMMETRIC                  Set this to 0 to disable symmetric FOV (defaults to 1)
  *  RL_MAX_RECURSION                  Maximum recursion (defaults to 100). This is used in FOV to limit recursion when fov_radius is large or -1 (unlimited).
  *  RL_MAPGEN_BSP_RANDOMISE_ROOM_LOC  Set this to 0 to disable randomizing room locations within bsp (used in rl_mapgen_bsp - defaults to 1)
@@ -425,19 +428,27 @@ RL_BSP* rl_bsp_random_leaf(const RL_BSP *root);
  * Pathfinding - disable with #define RL_ENABLE_PATHFINDING 0
  */
 
+/**
+ * What structure to use for pathfinding coordinates - set this to RL_Point3d to support 3d pathfinding.
+ */
+#ifndef RL_GRAPH_POINT_STRUCT
+#define RL_GRAPH_POINT_STRUCT RL_Point2d
+#endif
+
 /* A point on the map used for pathfinding. The points are a float type for flexibility since pathfinding works for maps */
 /* of all data types. */
-typedef struct RL_Point {
+typedef struct RL_Point2d {
     float x, y;
-} RL_Point;
+} RL_Point2d;
 
-/* Macro to easily create a RL_Point (compound literals only available in C99, which MSVC doesn't support). */
-#define RL_XY(x, y) RL_CLITERAL(RL_Point) { (float)(x), (float)(y) }
+/* Same as above, but with an additional Z component in case of pathfinding in hex grid or 3d maps. */
+typedef struct RL_Point3d {
+    float x, y, z;
+} RL_Point3d;
 
-/* Max neighbors for a pathfinding node. */
-#ifndef RL_MAX_NEIGHBOR_COUNT
-#define RL_MAX_NEIGHBOR_COUNT 8
-#endif
+/* A point on the map used for pathfinding. The points are a float type for flexibility since pathfinding works for maps */
+/* of all data types. */
+typedef RL_GRAPH_POINT_STRUCT RL_Point;
 
 /* Represents a pathfinding node that has been scored for pathfinding (e.g. with the Dijkstra algorithm). */
 typedef struct RL_GraphNode {
@@ -481,6 +492,10 @@ size_t rl_graph_neighbors_cardinal_passable(const RL_Graph *graph, RL_Point poin
 size_t rl_graph_neighbors_ordinal(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors);
 /* Returns up to 4 of any neighbors, passable or not */
 size_t rl_graph_neighbors_cardinal(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors);
+/* Returns up to 6 of any neighbors, passable or not (for hex grids using axial points/coordinates) */
+size_t rl_graph_neighbors_axial(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors);
+/* Returns up to 6 apassable neighbors (for hex grids using axial points/coordinates) */
+size_t rl_graph_neighbors_axial_passable(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors);
 
 /* Custom distance function for pathfinding - calculates distance between map nodes */
 typedef float (*RL_DistanceFun)(RL_Point from, RL_Point to);
@@ -488,6 +503,18 @@ typedef float (*RL_DistanceFun)(RL_Point from, RL_Point to);
 /* Custom score function for pathfinding - most users won't need this, but it gives flexibility in weighting the
  * Dijkstra graph. Note that Dijkstra expects you to add the current node's score to the newly calculated score. */
 typedef float (*RL_ScoreFun)(const RL_GraphNode *current, const RL_GraphNode *neighbor, void *context);
+
+/* Convert a map point (int) to RL_Point for pathfinding */
+typedef RL_Point (*RL_PointFun)(unsigned int x, unsigned int y);
+
+/* Generate point via simple C typecasting for 2d square grids */
+RL_Point rl_point(unsigned int x, unsigned int y);
+/* Generate axial point from RL_Map offset coordinates */
+RL_Point rl_point_axial(unsigned int x, unsigned int y);
+
+/* Helper functions to convert from axial points back to RL_Map offset coordinates (e.g. for RL_Map bounds checking) */
+unsigned int rl_axial_to_map_x(RL_Point axial);
+unsigned int rl_axial_to_map_y(RL_Point axial);
 
 /* Generates a line starting at from ending at to. Each path in the line will be incremented by step. */
 RL_Path *rl_line_create(RL_Point from, RL_Point to, float step);
@@ -536,8 +563,9 @@ void rl_dijkstra_score_ex(RL_Graph *graph, RL_Point start, RL_ScoreFun score_f, 
 RL_Graph *rl_graph_floodfill_largest_area(const RL_Map *map);
 
 /* Create an unscored graph based on the 2d map. Make sure to call rl_graph_destroy when finished. */
-/* Pass NULL to neighbors_f to score each of 8 passable (diagonal) neighbors for each point. */
-RL_Graph *rl_graph_create(const RL_Map *map, RL_NeighborsFun neighbors_f);
+/* Pass NULL to neighbors_f to score each of 8 passable (diagonal) neighbors for each point.
+ * Pass NULL to point_f to generate points by simple C type casting (e.g. for 2d square grid). */
+RL_Graph *rl_graph_create(const RL_Map *map, RL_NeighborsFun neighbors_f, RL_PointFun point_f);
 
 /* Reset scores of Dijkstra map */
 void rl_graph_reset(RL_Graph *graph);
@@ -714,6 +742,11 @@ bool rl_file_load_fov(RL_FOV **data, void *file);
 #endif
 #ifndef RL_FREE
 #define RL_FREE free
+#endif
+
+/* Max neighbors for a pathfinding node. */
+#ifndef RL_MAX_NEIGHBOR_COUNT
+#define RL_MAX_NEIGHBOR_COUNT 8
 #endif
 
 #define RL_UNUSED(x) (void)x
@@ -1405,13 +1438,13 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
                 if (RL_PASSABLE_F(map, x, y)) {
                     for (i=0; i<heap->len; ++i) {
                         RL_Graph *floodfill = (RL_Graph*) heap->heap[i];
-                        if (rl_graph_is_scored(floodfill, RL_XY(x, y))) {
+                        if (rl_graph_is_scored(floodfill, rl_point(x, y))) {
                             is_scored = true;
                             break;
                         }
                     }
                     if (!is_scored) {
-                        RL_Graph *floodfill = rl_dijkstra_create(map, RL_XY(x, y), NULL, NULL);
+                        RL_Graph *floodfill = rl_dijkstra_create(map, rl_point(x, y), NULL, NULL);
                         rl_heap_insert(heap, floodfill);
                     }
                 }
@@ -1420,7 +1453,7 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
         /* connect each floodfill with another random one */
         if (heap->len > 1) {
             int i;
-            RL_Graph *graph = rl_graph_create(map, rl_graph_neighbors_cardinal);
+            RL_Graph *graph = rl_graph_create(map, rl_graph_neighbors_cardinal, NULL);
             RL_ASSERT(graph);
             for (i=0; i<heap->len; ++i) {
                 RL_Graph *floodfill_target;
@@ -1493,7 +1526,7 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
         if (floodfill) {
             for (x=offset_x; x<offset_x + width; ++x) {
                 for (y=offset_y; y<offset_y + height; ++y) {
-                    if (!rl_graph_is_scored(floodfill, RL_XY(x, y))) {
+                    if (!rl_graph_is_scored(floodfill, rl_point(x, y))) {
                         map->tiles[x + y*map->width] = RL_TileRock;
                     }
                 }
@@ -1584,6 +1617,7 @@ RL_Status rl_mapgen_maze_ex(RL_Map *map, unsigned int offset_x, unsigned int off
     }
 
     /* choose random starting tile */
+    /* TODO use connect_corridors function to do this so we can connect different parts of e.g. automata & bsp */
     x = RL_RNG_F(offset_x, offset_x + width - 1);
     y = RL_RNG_F(offset_y, offset_y + height - 1);
     map->tiles[x + y*map->width] = RL_TileCorridor;
@@ -1981,11 +2015,11 @@ void rl_mapgen_connect_corridors_bsp_recursive(RL_Map *map, RL_BSP *root, bool d
     unsigned int x, y;
     RL_BSP *leaf = rl_bsp_random_leaf(node);
     rl_bsp_find_room(map, leaf, &x, &y);
-    RL_Point dig_start = {x, y};
+    RL_Point dig_start = rl_point(x, y);
     RL_ASSERT(RL_PASSABLE_F(map, dig_start.x, dig_start.y));
     leaf = rl_bsp_random_leaf(sibling);
     rl_bsp_find_room(map, leaf, &x, &y);
-    RL_Point dig_end = {x, y};
+    RL_Point dig_end = rl_point(x, y);
     RL_ASSERT(RL_PASSABLE_F(map, dig_end.x, dig_end.y));
     RL_ASSERT(!(dig_start.x == dig_end.x && dig_start.y == dig_end.y));
 
@@ -2009,7 +2043,7 @@ void rl_mapgen_connect_corridors_bsp_recursive(RL_Map *map, RL_BSP *root, bool d
 }
 void rl_mapgen_connect_corridors_bsp(RL_Map *map, RL_BSP *root, bool draw_doors)
 {
-    RL_Graph *graph = rl_graph_create(map, rl_graph_neighbors_cardinal);
+    RL_Graph *graph = rl_graph_create(map, rl_graph_neighbors_cardinal, NULL);
     RL_ASSERT(graph);
     if (graph) {
         rl_mapgen_connect_corridors_bsp_recursive(map, root, draw_doors, graph);
@@ -2029,7 +2063,7 @@ void rl_mapgen_connect_corridors_randomly(RL_Map *map, RL_BSP *root, bool draw_d
     }
     RL_ASSERT(leftmost_node && rl_bsp_is_leaf(leftmost_node));
     RL_BSP *node = leftmost_node;
-    RL_Graph *graph = rl_graph_create(map, rl_graph_neighbors_cardinal);
+    RL_Graph *graph = rl_graph_create(map, rl_graph_neighbors_cardinal, NULL);
     RL_ASSERT(graph);
     if (graph == NULL) return;
     while (node) {
@@ -2043,11 +2077,11 @@ void rl_mapgen_connect_corridors_randomly(RL_Map *map, RL_BSP *root, bool draw_d
         unsigned int x, y;
         rl_bsp_find_room(map, node, &x, &y);
         RL_ASSERT(RL_PASSABLE_F(map, x, y));
-        RL_Point dig_start = {x, y};
+        RL_Point dig_start = rl_point(x, y);
         RL_ASSERT(RL_PASSABLE_F(map, dig_start.x, dig_start.y));
         rl_bsp_find_room(map, sibling, &x, &y);
         RL_ASSERT(RL_PASSABLE_F(map, x, y));
-        RL_Point dig_end = {x, y};
+        RL_Point dig_end = rl_point(x, y);
         RL_ASSERT(RL_PASSABLE_F(map, dig_end.x, dig_end.y));
         RL_ASSERT(!(dig_start.x == dig_end.x && dig_start.y == dig_end.y));
 
@@ -2085,7 +2119,7 @@ RL_Graph *rl_graph_floodfill_largest_area(const RL_Map *map)
     for (unsigned int x = 0; x < map->width; ++x) {
         for (unsigned int y = 0; y < map->height; ++y) {
             if (RL_PASSABLE_F(map, x, y) && !visited[x + y*map->width]) {
-                RL_Graph *test = rl_dijkstra_create(map, RL_XY(x, y), NULL, NULL);
+                RL_Graph *test = rl_dijkstra_create(map, rl_point(x, y), NULL, NULL);
                 RL_ASSERT(test);
                 if (test == NULL) {
                     RL_FREE(visited);
@@ -2119,6 +2153,77 @@ RL_Graph *rl_graph_floodfill_largest_area(const RL_Map *map)
     return floodfill;
 }
 
+RL_Point rl_point(unsigned int x, unsigned int y)
+{
+    return (RL_Point) { .x = (float) x, .y = (float) y };
+}
+
+// TODO check for max int
+RL_Point rl_point_axial(unsigned int x, unsigned int y)
+{
+    RL_Point point;
+
+    int x_ = x;
+    int y_ = y;
+#if RL_HEX_FLAT_TOP == 1
+        int val = x_ & 1;
+    #if RL_HEX_ODD_OFFSET == 1
+        int shift = (x_ - val) / 2;
+    #else
+        int shift = (x_ + val) / 2;
+    #endif
+        point.x = x_;
+        point.y = y_ - shift;
+#else // RL_HEX_FLAT_TOP
+        int val = y_ & 1;
+    #if RL_HEX_ODD_OFFSET == 1
+        // TODO is shift right?
+        int shift = (y_ - val) / 2;
+    #else
+        int shift = (y_ + val) / 2;
+    #endif
+        point.x = x_ - shift;
+        point.y = y_;
+#endif // RL_HEX_FLAT_TOP
+
+    return point;
+}
+
+RL_Point rl_axial_to_offset(RL_Point axial)
+{
+    RL_Point offset;
+
+#if RL_HEX_FLAT_TOP == 1
+    // Flat-topped hex layouts (columns are shifted)
+    #if RL_HEX_ODD_OFFSET == 1
+        offset.x = axial.x;
+        offset.y = axial.y + (axial.x - ((int)axial.x & 1)) / 2;
+    #else
+        offset.x = axial.x;
+        offset.y = axial.y + (axial.x + ((int)axial.x & 1)) / 2;
+    #endif
+#else // RL_HEX_FLAT_TOP
+    #if RL_HEX_ODD_OFFSET == 1
+        offset.x = axial.x + (axial.y - ((int)axial.y & 1)) / 2;
+        offset.y = axial.y;
+    #else
+        offset.x = axial.x + (axial.y + ((int)axial.y & 1)) / 2;
+        offset.y = axial.y;
+    #endif
+#endif // RL_HEX_FLAT_TOP
+
+    return offset;
+}
+
+unsigned int rl_axial_to_map_x(RL_Point axial)
+{
+    return rl_axial_to_offset(axial).x;
+}
+
+unsigned int rl_axial_to_map_y(RL_Point axial)
+{
+    return rl_axial_to_offset(axial).y;
+}
 
 RL_Path *rl_line_create(RL_Point a, RL_Point b, float step)
 {
@@ -2291,7 +2396,62 @@ size_t rl_graph_neighbors_cardinal(const RL_Graph *graph, RL_Point point, RL_Gra
     return rl_neighbors_default_fn(graph, point, neighbors, false, false);
 }
 
-RL_Graph *rl_graph_create(const RL_Map *map, RL_NeighborsFun neighbors_f)
+/**
+ * Following code is for hex grid conversion to axial coordinates & neighbors
+ */
+size_t rl_graph_neighbors_axial_default(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors, bool only_passable_neighbors)
+{
+    RL_ASSERT(graph != NULL);
+    if (graph == NULL) return 0;
+    RL_Map *map = (RL_Map*) graph->context;
+    RL_ASSERT(map != NULL);
+    if (map == NULL) return 0;
+    RL_ASSERT(neighbors != NULL);
+    if (neighbors == NULL) return 0;
+    RL_GraphNode *nodes = graph->nodes;
+    RL_ASSERT(nodes != NULL);
+    if (nodes == NULL) return 0;
+
+    size_t neighbors_count = 0;
+    RL_Point neighbor_coords[6];
+    neighbor_coords[0].x = (int)point.x + 1;
+    neighbor_coords[0].y = (int)point.y;
+    neighbor_coords[1].x = (int)point.x + 1;
+    neighbor_coords[1].y = (int)point.y - 1;
+    neighbor_coords[2].x = (int)point.x;
+    neighbor_coords[2].y = (int)point.y - 1;
+    neighbor_coords[3].x = (int)point.x - 1;
+    neighbor_coords[3].y = (int)point.y;
+    neighbor_coords[4].x = (int)point.x - 1;
+    neighbor_coords[4].y = (int)point.y + 1;
+    neighbor_coords[5].x = (int)point.x;
+    neighbor_coords[5].y = (int)point.y + 1;
+    for (int i=0; i<6; i++) {
+        unsigned int offset_x = rl_axial_to_map_x(neighbor_coords[i]);
+        unsigned int offset_y = rl_axial_to_map_y(neighbor_coords[i]);
+        size_t idx;
+        if (!rl_map_in_bounds(map, offset_x, offset_y))
+            continue;
+        if (only_passable_neighbors && !RL_PASSABLE_F(map, offset_x, offset_y))
+            continue;
+        idx = neighbor_coords[i].x + neighbor_coords[i].y*map->width;
+        neighbors[neighbors_count++] = &graph->nodes[idx];
+    }
+
+    return neighbors_count;
+}
+size_t rl_graph_neighbors_axial(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors)
+{
+    RL_ASSERT(RL_MAX_NEIGHBOR_COUNT >= 6 && "Default rl_graph_neighbors_axial includes max 6 neighbors");
+    return rl_graph_neighbors_axial_default(graph, point, neighbors, false);
+}
+size_t rl_graph_neighbors_axial_passable(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors)
+{
+    RL_ASSERT(RL_MAX_NEIGHBOR_COUNT >= 6 && "Default rl_graph_neighbors_axial_passable includes max 6 neighbors");
+    return rl_graph_neighbors_axial_default(graph, point, neighbors, true);
+}
+
+RL_Graph *rl_graph_create(const RL_Map *map, RL_NeighborsFun neighbors_f, RL_PointFun point_f)
 {
     RL_Graph *graph = (RL_Graph*) RL_MALLOC(sizeof(*graph));
     RL_ASSERT(graph);
@@ -2303,12 +2463,14 @@ RL_Graph *rl_graph_create(const RL_Map *map, RL_NeighborsFun neighbors_f)
         RL_FREE(graph);
         return NULL;
     }
+    if (point_f == NULL) {
+        point_f = rl_point;
+    }
     for (unsigned int x=0; x<map->width; x++) {
         for (unsigned int y=0; y<map->height; y++) {
             size_t idx = x + y*map->width;
             RL_GraphNode *node = &nodes[idx];
-            node->point.x = (float) x;
-            node->point.y = (float) y;
+            node->point = point_f(x, y);
             node->score = FLT_MAX;
         }
     }
@@ -2351,7 +2513,7 @@ RL_Graph *rl_dijkstra_create(const RL_Map *map,
                             RL_DistanceFun distance_f,
                             RL_NeighborsFun neighbors_f)
 {
-    RL_Graph *graph = rl_graph_create(map, neighbors_f);
+    RL_Graph *graph = rl_graph_create(map, neighbors_f, NULL);
     rl_dijkstra_score(graph, start, distance_f);
 
     return graph;

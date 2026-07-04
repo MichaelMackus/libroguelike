@@ -37,7 +37,7 @@ int main(void)
     unsigned int x, y;
     RL_Map map = { .width = WIDTH, .height = HEIGHT, .tiles = bsp_map };
     RL_FOV fov = { .width = WIDTH, .height = HEIGHT, .visibility = (RL_Byte[WIDTH * HEIGHT]) {0} };
-    RL_Point player = { 24, 6 };
+    RL_Point player = rl_point(24, 6);
 
     // initialize curses
     initscr();

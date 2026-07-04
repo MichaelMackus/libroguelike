@@ -19,7 +19,7 @@ int main(void)
         }
     }
 
-    RL_Point start = RL_XY(rl_rng_generate(0, map->width - 1), rl_rng_generate(0, map->height - 1));
+    RL_Point start = rl_point(rl_rng_generate(0, map->width - 1), rl_rng_generate(0, map->height - 1));
     RL_Graph *path_map = rl_dijkstra_create(map, start, rl_distance_manhattan, NULL);
     printf("Start: %f,%f\n", start.x, start.y);
 
@@ -28,7 +28,7 @@ int main(void)
             const RL_GraphNode *n;
             char sym = ' ';
             n = &path_map->nodes[y * map->width + x];
-            n = rl_graph_node(path_map, RL_XY(x, y));
+            n = rl_graph_node(path_map, rl_point(x, y));
             /* if (!n->passable) { */
             /*     sym = '.'; */
             /*} else */if (n->score == 0) {

@@ -24,8 +24,8 @@ int main(int argc, char **argv)
     system("clear");
 
     // draw a line on the screen with step of 1
-    RL_Point start = { rl_rng_generate(0, MAP_WIDTH - 1), rl_rng_generate(0, MAP_HEIGHT - 1) };
-    RL_Point end = { rl_rng_generate(0, MAP_WIDTH - 1), rl_rng_generate(0, MAP_HEIGHT - 1) };
+    RL_Point start = rl_point(rl_rng_generate(0, MAP_WIDTH - 1), rl_rng_generate(0, MAP_HEIGHT - 1));
+    RL_Point end = rl_point(rl_rng_generate(0, MAP_WIDTH - 1), rl_rng_generate(0, MAP_HEIGHT - 1));
     printf("S: (%d, %d) | E: (%d, %d)\n", (int)start.x, (int)start.y, (int)end.x, (int)end.y);
     RL_Path *path = rl_line_create(start, end, 1);
     while ((path = rl_path_walk(path))) {
