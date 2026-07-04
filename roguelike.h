@@ -2177,7 +2177,6 @@ RL_Point rl_point_axial(unsigned int x, unsigned int y)
 #else // RL_HEX_FLAT_TOP
         int val = y_ & 1;
     #if RL_HEX_ODD_OFFSET == 1
-        // TODO is shift right?
         int shift = (y_ - val) / 2;
     #else
         int shift = (y_ + val) / 2;

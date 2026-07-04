@@ -21,7 +21,7 @@ MapgenType mapgen_type = AUTOMATA;
 RL_Point player, new_player;
 
 // generate new map depending on mapgen type selected
-bool mapgen()
+bool mapgen(void)
 {
     RL_Status status;
     switch (mapgen_type) {
@@ -42,7 +42,7 @@ bool mapgen()
     }
 
     // generate a random starting tile for player
-    int player_x, player_y;
+    int player_x = 0, player_y = 0;
     while (!rl_map_tile_is(&map, player_x, player_y, RL_TileRoom)) {
         player_x = rl_rng_generate(0, WIDTH - 1);
         player_y = rl_rng_generate(0, HEIGHT - 1);
@@ -61,7 +61,7 @@ int main(int argc, char **argv)
     }
     srand(seed);
 
-    mapgen();
+    if (!mapgen()) return 1;
 
     // initialize curses (for player movement)
     initscr();
@@ -87,7 +87,7 @@ int main(int argc, char **argv)
         switch (input) {
             case 'r':
                 // generate new map
-                mapgen();
+                if (!mapgen()) return 1;
                 break;
             case 'b':
                 // set BSP mapgen type

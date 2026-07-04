@@ -12,6 +12,7 @@
 #include "../roguelike.h"
 
 // map filled with empty space (the corridor tile is used so map generation properly places doors in town rooms; otherwise, if everything is floor tile, the corridor generation cannot find the rooms to connect)
+__attribute__((nonstring))
 unsigned char map_str[WIDTH * HEIGHT] = "################################################################################"
                                         "################################################################################"
                                         "################################################################################"

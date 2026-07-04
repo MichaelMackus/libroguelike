@@ -16,6 +16,7 @@
 #define HEIGHT 15
 
 // buffer & rendering function to render a basic layout of the BSP tree
+__attribute__((nonstring))
 RL_Byte bsp_map[WIDTH * HEIGHT] = "                                             "
                                   "                                             "
                                   "                        #                    "
