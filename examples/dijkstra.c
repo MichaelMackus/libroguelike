@@ -20,7 +20,7 @@ int main(void)
     }
 
     RL_Point start = rl_point(rl_rng_generate(0, map.width - 1), rl_rng_generate(0, map.height - 1));
-    RL_Graph path_map = rl_graph_create_scored(map, start, rl_graph_score_manhattan, NULL, NULL);
+    RL_Graph path_map = rl_graph_create_scored(map, start, rl_graph_score_manhattan, NULL);
     printf("Start: %f,%f\n", start.x, start.y);
 
     for (unsigned int y=0; y < map.height; y++) {

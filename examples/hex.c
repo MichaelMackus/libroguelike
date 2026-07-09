@@ -1,10 +1,18 @@
 #define RL_IMPLEMENTATION
 
+#define _DEFAULT_SOURCE // needed for usleep
 #define RL_HEX_ODD_OFFSET 1
 #include "../roguelike.h"
 #include <curses.h>
 #include <stdio.h>
 #include <time.h>
+
+#if defined(WIN32) || defined(_WIN32)
+#include <windows.h>
+#else
+#include <unistd.h>
+#define Sleep(x) usleep((x)*1000)
+#endif
 
 #define WIDTH 40
 #define HEIGHT 25
@@ -19,6 +27,7 @@ RL_Byte tiles[WIDTH * HEIGHT] = {0};
 RL_Map map = { .width = WIDTH, .height = HEIGHT, .tiles = (RL_Byte*) tiles };
 MapgenType mapgen_type = AUTOMATA;
 RL_Point player, new_player;
+RL_Path *player_path;
 
 // generate new map depending on mapgen type selected
 bool mapgen(void)
@@ -83,75 +92,117 @@ int main(int argc, char **argv)
     bool outline_display = false;
     int camera_x = 0, camera_y = 0, input = 0;
     do {
-        // handle input
-        switch (input) {
-            case 'r':
-                // generate new map
-                if (!mapgen()) return 1;
-                break;
-            case 'b':
-                // set BSP mapgen type
-                mapgen_type = BSP;
-                mapgen();
-                break;
-            case 'c':
-                // set BSP mapgen type
-                mapgen_type = AUTOMATA;
-                mapgen();
-                break;
-            case 'm':
-                // set BSP mapgen type
-                mapgen_type = MAZE;
-                mapgen();
-                break;
-            case 'h':
-                // toggle hex rendering mode
-                hex_display = !hex_display;
-                break;
-            case 'o':
-                // toggle outline rendering
-                outline_display = !outline_display;
-                break;
-            // WASD = camera control
-            case 'w':
-                camera_y -= 1;
-                break;
-            case 'a':
-                camera_x -= 1;
-                break;
-            case 's':
-                camera_y += 1;
-                break;
-            case 'd':
-                camera_x += 1;
-                break;
-            // player movement (in axial coordinates) - numpad
-            case KEY_LEFT:
-            case '4':
-                new_player.x -= 1;
-                break;
-            case KEY_RIGHT:
-            case '6':
-                new_player.x += 1;
-                break;
-            case KEY_A1:
-            case '7':
-                new_player.y -= 1;
-                break;
-            case KEY_A3:
-            case '9':
-                new_player.x += 1;
-                new_player.y -= 1;
-                break;
-            case KEY_C1:
-            case '1':
-                new_player.x -= 1;
-                new_player.y += 1;
-                break;
-            case KEY_C3:
-            case '3':
-                new_player.y += 1;
-                break;
+        if (!player_path) { // only handle input if we're not moving to a destination path
+            // handle input
+            switch (input) {
+                case 'r':
+                    // generate new map
+                    if (!mapgen()) return 1;
+                    break;
+                case 'b':
+                    // set BSP mapgen type
+                    mapgen_type = BSP;
+                    mapgen();
+                    break;
+                case 'c':
+                    // set BSP mapgen type
+                    mapgen_type = AUTOMATA;
+                    mapgen();
+                    break;
+                case 'm':
+                    // set BSP mapgen type
+                    mapgen_type = MAZE;
+                    mapgen();
+                    break;
+                case 'h':
+                    // toggle hex rendering mode
+                    hex_display = !hex_display;
+                    break;
+                case 'o':
+                    // toggle outline rendering
+                    outline_display = !outline_display;
+                    break;
+                // WASD = camera control
+                case 'w':
+                    camera_y -= 1;
+                    break;
+                case 'a':
+                    camera_x -= 1;
+                    break;
+                case 's':
+                    camera_y += 1;
+                    break;
+                case 'd':
+                    camera_x += 1;
+                    break;
+                // player movement (in axial coordinates) - numpad
+                case KEY_LEFT:
+                case '4':
+                    new_player.x -= 1;
+                    break;
+                case KEY_RIGHT:
+                case '6':
+                    new_player.x += 1;
+                    break;
+                case KEY_A1:
+                case '7':
+                    new_player.y -= 1;
+                    break;
+                case KEY_A3:
+                case '9':
+                    new_player.x += 1;
+                    new_player.y -= 1;
+                    break;
+                case KEY_C1:
+                case '1':
+                    new_player.x -= 1;
+                    new_player.y += 1;
+                    break;
+                case KEY_C3:
+                case '3':
+                    new_player.y += 1;
+                    break;
+                case KEY_MOUSE:
+                    {
+                        MEVENT ev;
+#if defined(WIN32) || defined(_WIN32)
+                        while (nc_getmouse(&ev) == OK)
+#else
+                        while (getmouse(&ev) == OK)
+#endif
+                        {
+                            if (player_path) {
+                                rl_path_destroy(player_path);
+                                player_path = NULL;
+                            }
+                            // if we have a mouse event & the destination is seen & passable, create a path to the destination
+                            RL_Point dest = rl_point(ev.x, ev.y);
+                            if (hex_display) { // convert mouse x & y to hex grid x & y
+                                dest.y /= 2.0;
+                                if ((int)dest.y % 2 != 0)
+                                    dest.x -= 2.0;
+                                dest.x /= 4.0;
+                                dest.y += camera_y;
+                                dest.x += camera_x;
+                            }
+                            if (rl_map_is_passable(map, dest.x, dest.y)) {
+                                dest = rl_point_axial(dest.x, dest.y);
+                                RL_Graph graph = rl_graph_create_from_map(map,
+                                                                         rl_graph_neighbors_axial_passable);
+                                rl_graph_convert_to_axial(graph);
+                                rl_graph_score(graph, map, dest, rl_graph_score_manhattan_axial);
+                                player_path = rl_path_create_from_graph(graph, map, player);
+                                player_path = rl_path_walk(player_path); // skip first point
+                                rl_graph_destroy(graph);
+                            }
+                        }
+                        break;
+                    }
+            }
+        } else {
+            new_player = player_path->point;
+            player_path = rl_path_walk(player_path);
+            Sleep(50); // so we can see the movement
         }
         // update the player position if the target is passable
         if (rl_map_is_passable(map, rl_axial_to_map_x(new_player), rl_axial_to_map_y(new_player))) {
@@ -196,7 +247,10 @@ int main(int argc, char **argv)
             }
         }
         refresh();
-    } while ((input = getch()) && input != 'q');
+        if (!player_path) { // only handle input if we're not moving to a destination path
+            input = getch();
+        }
+    } while (input != 'q');
 
     endwin();
     printf("Seed: %ld\n", seed);

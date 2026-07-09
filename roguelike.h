@@ -486,10 +486,13 @@ typedef struct RL_Path {
 
 /* Useful distance functions for pathfinding. */
 float rl_distance_manhattan(RL_Point node, RL_Point end);
+float rl_distance_manhattan_axial(RL_Point node, RL_Point end);
+float rl_distance_manhattan_3d(RL_Point3d node, RL_Point3d end);
 float rl_distance_euclidian(RL_Point node, RL_Point end);
 float rl_distance_chebyshev(RL_Point node, RL_Point end);
 /** Default Dijkstra graph scoring functions for pathfinding **/
 float rl_graph_score_manhattan(void *context, const RL_GraphNode *current, const RL_GraphNode *neighbor);
+float rl_graph_score_manhattan_axial(void *context, const RL_GraphNode *current, const RL_GraphNode *neighbor);
 float rl_graph_score_euclidian(void *context, const RL_GraphNode *current, const RL_GraphNode *neighbor);
 float rl_graph_score_chebyshev(void *context, const RL_GraphNode *current, const RL_GraphNode *neighbor);
 
@@ -506,9 +509,6 @@ size_t rl_graph_neighbors_cardinal(void *context, RL_Point point, RL_GraphNode *
 size_t rl_graph_neighbors_axial(void *context, RL_Point point, RL_GraphNode **neighbors);
 /* Returns up to 6 apassable neighbors (for hex grids using axial points/coordinates) */
 size_t rl_graph_neighbors_axial_passable(void *context, RL_Point point, RL_GraphNode **neighbors);
-
-/* Convert a map point (int) to RL_Point for pathfinding */
-typedef RL_Point (*RL_PointFun)(unsigned int x, unsigned int y);
 
 /* Generate point via simple C typecasting for 2d square grids */
 RL_Point rl_point(unsigned int x, unsigned int y);
@@ -542,7 +542,7 @@ void rl_path_destroy(RL_Path *path);
  * TODO when creating, accept by pointer???
  */
 
-/* Create pre-scored Dijkstra map from supplied RL_Map 
+/* Create pre-scored Dijkstra map from supplied RL_Map
  *
  * You can use Dijkstra maps for pathfinding, simple AI, and much more. As with all Dijkstra maps, you just walk the
  * map by picking the lowest scored neighbor.
@@ -556,23 +556,22 @@ void rl_path_destroy(RL_Path *path);
  *                layouts. Pass NULL to use rl_graph_neighbors_ordinal_passable (8 passable neighbors including diagonals).
  *  distance_f  - Calculates the distance between nodes in the graph. This is used for scoring. Pass NULL to use
  *                rl_distance_simple which is a rough approximation of euclidian distance.
- *  point_f     - Converts the Map uint x,y point to RL_Point2d. Pass NULL to use rl_point which uses C typecasting.
  */
-RL_Graph rl_graph_create_scored(const RL_Map map, RL_Point start, RL_ScoreFun score_f, RL_NeighborsFun neighbors_f, RL_PointFun point_f);
+RL_Graph rl_graph_create_scored(const RL_Map map, RL_Point start, RL_ScoreFun score_f, RL_NeighborsFun neighbors_f);
 
 /* Dijkstra pathfinding algorithm. Pass NULL to neighbors_f to score each of 8 passable (diagonal) neighbors for each
- * point. Pass NULL to point_f to use simple type-casting for point conversion (i.e. for 2d square maps).
+ * point.
  *
  * You need to score the graph after creation - for simpler use cases you can just call rl_path_create to create a path
  * without the re-usable graph structure, or use rl_dijkstra_create_and_score.
  *
  * Make sure to destroy the resulting RL_Graph with rl_graph_destroy. */
-RL_Graph rl_graph_create_from_map(const RL_Map map, RL_NeighborsFun neighbors_f, RL_PointFun point_f);
+RL_Graph rl_graph_create_from_map(const RL_Map map, RL_NeighborsFun neighbors_f);
 
 /* Lower level version of above function. Creates graph without relying on internal map data struct.
  *
  * Make sure to destroy the resulting RL_Graph with rl_graph_destroy. */
-RL_Graph rl_graph_create(unsigned int map_width, unsigned int map_height, RL_NeighborsFun neighbors_f, RL_PointFun point_f);
+RL_Graph rl_graph_create(unsigned int map_width, unsigned int map_height, RL_NeighborsFun neighbors_f);
 
 /* Scores the graph with the Dijkstra algorithm.
  *
@@ -599,6 +598,9 @@ void rl_graph_score(RL_Graph graph, const RL_Map map, RL_Point start, RL_ScoreFu
  */
 void rl_graph_score_with_context(RL_Graph graph, void *context, RL_Point start, RL_ScoreFun score_f);
 
+/* Converts all points in graph from x, y coordinates to axial q, r (hex) coordinates */
+void rl_graph_convert_to_axial(RL_Graph graph);
+
 /* The default context passed to RL_ScoreFun and RL_NeighborsFun - if custom user context is passed, this is ignored */
 typedef struct RL_GraphContext {
     RL_Map map;
@@ -619,7 +621,7 @@ void rl_graph_reset(RL_Graph graph);
 /* Note that this assumes the graph lengths are identical */
 void rl_graph_add(RL_Graph graph, const RL_Graph graph_b);
 
-/* Combine two graphs together - sets each unscored node to the scored node in the other graph 
+/* Combine two graphs together - sets each unscored node to the scored node in the other graph
  * If each graph has scored nodes at the same point, uses the score of first graph */
 void rl_graph_combine(RL_Graph graph, const RL_Graph graph_b);
 
@@ -1503,7 +1505,7 @@ RL_Status rl_mapgen_automata_ex(RL_Map map, unsigned int offset_x, unsigned int 
          * now. */
 
         /* TODO can remove reliance of heap here by just using 2 floodfill graph */
-        RL_Graph floodfill = rl_graph_create_from_map(map, NULL, NULL);
+        RL_Graph floodfill = rl_graph_create_from_map(map, NULL);
         /* fill floodfills array with a floodfill of each connected space */
         bool is_scored = false;
         for (x=offset_x; x<offset_x + width; ++x) {
@@ -2004,6 +2006,20 @@ float rl_distance_manhattan(RL_Point node, RL_Point end)
     return fabs(node.x - end.x) + fabs(node.y - end.y);
 }
 
+float rl_distance_manhattan_3d(RL_Point3d node, RL_Point3d end)
+{
+    return fabs(node.x - end.x) + fabs(node.y - end.y) + fabs(node.z - node.z);
+}
+
+float rl_distance_manhattan_axial(RL_Point node, RL_Point end)
+{
+    float s1 = -1 * (node.x + node.y);
+    float s2 = -1 * (end.x  + end.y);
+
+    return 0.5 * rl_distance_manhattan_3d((RL_Point3d) {node.x, node.y, s1},
+                                          (RL_Point3d) {end.x,  end.y,  s2});
+}
+
 float rl_distance_euclidian(RL_Point node, RL_Point end)
 {
     float distance_x = node.x - end.x;
@@ -2025,6 +2041,13 @@ float rl_graph_score_manhattan(void *context, const RL_GraphNode *current, const
     RL_UNUSED(context);
 
     return current->score + rl_distance_manhattan(current->point, neighbor->point);
+}
+
+float rl_graph_score_manhattan_axial(void *context, const RL_GraphNode *current, const RL_GraphNode *neighbor)
+{
+    RL_UNUSED(context);
+
+    return current->score + rl_distance_manhattan_axial(current->point, neighbor->point);
 }
 
 float rl_graph_score_euclidian(void *context, const RL_GraphNode *current, const RL_GraphNode *neighbor)
@@ -2091,7 +2114,7 @@ void rl_mapgen_connect_corridors_bsp_recursive(RL_Map map, RL_BSP *root, bool dr
 }
 void rl_mapgen_connect_corridors_bsp(RL_Map map, RL_BSP *root, bool draw_doors)
 {
-    RL_Graph graph = rl_graph_create(map.width, map.height, rl_graph_neighbors_cardinal, NULL);
+    RL_Graph graph = rl_graph_create(map.width, map.height, rl_graph_neighbors_cardinal);
     RL_ASSERT(graph.nodes != NULL);
     if (graph.nodes != NULL) {
         rl_mapgen_connect_corridors_bsp_recursive(map, root, draw_doors, graph);
@@ -2111,7 +2134,7 @@ void rl_mapgen_connect_corridors_randomly(RL_Map map, RL_BSP *root, bool draw_do
     }
     RL_ASSERT(leftmost_node && rl_bsp_is_leaf(leftmost_node));
     RL_BSP *node = leftmost_node;
-    RL_Graph graph = rl_graph_create(map.width, map.height, rl_graph_neighbors_cardinal, NULL);
+    RL_Graph graph = rl_graph_create(map.width, map.height, rl_graph_neighbors_cardinal);
     RL_ASSERT(graph.nodes != NULL);
     if (graph.nodes == NULL) return;
     while (node) {
@@ -2167,7 +2190,7 @@ RL_Graph rl_graph_floodfill_largest_area(const RL_Map map)
     for (unsigned int x = 0; x < map.width; ++x) {
         for (unsigned int y = 0; y < map.height; ++y) {
             if (RL_PASSABLE_F(map, x, y) && !visited[x + y*map.width]) {
-                RL_Graph test = rl_graph_create_scored(map, rl_point(x, y), NULL, NULL, NULL);
+                RL_Graph test = rl_graph_create_scored(map, rl_point(x, y), NULL, NULL);
                 RL_ASSERT(test.nodes != NULL);
                 if (test.nodes == NULL) {
                     RL_FREE(visited);
@@ -2313,7 +2336,7 @@ RL_Path *rl_line_create(RL_Point a, RL_Point b, float step)
 
 RL_Path *rl_path_create(const RL_Map map, RL_Point start, RL_Point end, RL_ScoreFun score_f, RL_NeighborsFun neighbors_f)
 {
-    RL_Graph graph = rl_graph_create_scored(map, end, score_f, neighbors_f, NULL);
+    RL_Graph graph = rl_graph_create_scored(map, end, score_f, neighbors_f);
     RL_ASSERT(graph.nodes);
     if (graph.nodes == NULL) return NULL;
     RL_Path *path = rl_path_create_from_graph(graph, map, start);
@@ -2479,7 +2502,7 @@ size_t rl_graph_neighbors_axial_default(const RL_Graph graph, const RL_Map map, 
             continue;
         if (only_passable_neighbors && !RL_PASSABLE_F(map, offset_x, offset_y))
             continue;
-        idx = neighbor_coords[i].x + neighbor_coords[i].y*map.width;
+        idx = offset_x + offset_y*map.width;
         neighbors[neighbors_count++] = &graph.nodes[idx];
     }
 
@@ -2500,20 +2523,20 @@ size_t rl_graph_neighbors_axial_passable(void *context, RL_Point point, RL_Graph
     return rl_graph_neighbors_axial_default(graph_context->graph, graph_context->map, point, neighbors, true);
 }
 
-RL_Graph rl_graph_create_scored(const RL_Map map, RL_Point start, RL_ScoreFun score_f, RL_NeighborsFun neighbors_f, RL_PointFun point_f)
+RL_Graph rl_graph_create_scored(const RL_Map map, RL_Point start, RL_ScoreFun score_f, RL_NeighborsFun neighbors_f)
 {
-    RL_Graph graph = rl_graph_create_from_map(map, neighbors_f, point_f);
+    RL_Graph graph = rl_graph_create_from_map(map, neighbors_f);
     rl_graph_score(graph, map, start, score_f);
 
     return graph;
 }
 
-RL_Graph rl_graph_create_from_map(const RL_Map map, RL_NeighborsFun neighbors_f, RL_PointFun point_f)
+RL_Graph rl_graph_create_from_map(const RL_Map map, RL_NeighborsFun neighbors_f)
 {
-    return rl_graph_create(map.width, map.height, neighbors_f, point_f);
+    return rl_graph_create(map.width, map.height, neighbors_f);
 }
 
-RL_Graph rl_graph_create(unsigned int map_width, unsigned int map_height, RL_NeighborsFun neighbors_f, RL_PointFun point_f)
+RL_Graph rl_graph_create(unsigned int map_width, unsigned int map_height, RL_NeighborsFun neighbors_f)
 {
     RL_Graph graph = {0};
     size_t length = map_width * map_height;
@@ -2522,9 +2545,6 @@ RL_Graph rl_graph_create(unsigned int map_width, unsigned int map_height, RL_Nei
     if (nodes == NULL) {
         return graph;
     }
-    if (point_f == NULL) {
-        point_f = rl_point;
-    }
     if (neighbors_f == NULL) {
         neighbors_f = rl_graph_neighbors_ordinal_passable;
     }
@@ -2532,7 +2552,7 @@ RL_Graph rl_graph_create(unsigned int map_width, unsigned int map_height, RL_Nei
         for (unsigned int y=0; y<map_height; y++) {
             size_t idx = x + y*map_width;
             RL_GraphNode *node = &nodes[idx];
-            node->point = point_f(x, y);
+            node->point = rl_point(x, y);
             node->score = FLT_MAX;
         }
     }
@@ -2657,6 +2677,17 @@ void rl_graph_score_with_context(RL_Graph graph, void *context, RL_Point start, 
     }
 
     rl_heap_destroy(heap);
+}
+
+void rl_graph_convert_to_axial(RL_Graph graph)
+{
+    if (graph.nodes != NULL) {
+        RL_ASSERT(graph.length > 0);
+        for (size_t i=0; i < graph.length; i++) {
+            RL_GraphNode *node = &graph.nodes[i];
+            node->point = rl_point_axial(node->point.x, node->point.y);
+        }
+    }
 }
 
 void rl_graph_reset(RL_Graph graph)
