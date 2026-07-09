@@ -29,7 +29,9 @@
  * "rl_*_create" and a "rl_*_destroy" function. The create function allocates
  * memory and returns a pointer that is assumed to be freed with rl_*_destroy.
  * You can avoid using malloc & free by defining RL_MALLOC (and optionally
- * RL_CALLOC and RL_REALLOC) and RL_FREE, or simply manage the memory yourself.
+ * RL_CALLOC and RL_REALLOC) and RL_FREE. Note that RL_REALLOC will not be
+ * called by the library - it is only used in rl_heap_insert and all heaps used
+ * internally are never resized.
  *
  * Make sure to define RL_IMPLEMENTATION once and only once before including
  * "roguelike.h" to compile the library.
@@ -72,7 +74,7 @@
  * you want to "update" the FOV you should call "rl_fov_calculate" or
  * "rl_fov_calculate_ex".
  *
- *  RL_FOV *fov = rl_fov_create(80, 25);
+ *  RL_FOV fov = rl_fov_create(80, 25);
  *  for (;;) { // gameloop
  *      rl_fov_calculate(fov, map, player_x, player_y, 8); // last arg is FOV radius
  *      ... // draw map, handle input, etc.
@@ -81,26 +83,30 @@
  *
  * There is also a set of pathfinding functions - these functions primarily
  * create and manage Dijkstra graphs for pathfinding. These functions are
- * prefixed with rl_path, rl_dijkstra, and rl_graph. Paths should be "walked"
- * with "rl_path_walk" which frees each part of the path passed, returning the
- * next part of the path; or you can alternatively call "rl_path_destroy".
+ * prefixed with rl_path and rl_graph. Paths should be "walked" with
+ * "rl_path_walk" which frees each part of the path passed, returning the next
+ * part of the path; or you can alternatively call "rl_path_destroy".
  *
- *  RL_Path *path = rl_path_create(map, rl_point(0,0), rl_point(20,20), rl_distance_euclidian, rl_graph_neighbors_ordinal_passable);
+ *  RL_Path *path = rl_path_create(map,
+ *                                 rl_point(0,0),
+ *                                 rl_point(20,20),
+ *                                 rl_graph_score_euclidian,
+ *                                 rl_graph_neighbors_ordinal_passable);
  *  while ((path = rl_path_walk(path))) { ...  } // frees the path
  *
- * Dijkstra graphs can be created & scored with rl_dijkstra_create or manually
- * scored via rl_dijkstra_score* functions. After the graph is scored the
- * graph is can be walked by finding a "start" node in the graph, and
+ * Dijkstra graphs can be created & scored with rl_graph_create_scored or
+ * manually scored via rl_graph_score* function(s). After the graph is scored
+ * the graph is can be walked by finding a "start" node in the graph, and
  * recursively walking the graph by choosing the lowest scored neighbor. If a
  * RL_GraphNode has a score of FLT_MAX it has not been scored.
  *
  *  // Typically you provide destination for the initial Dijkstra graph
- *  RL_Graph graph = rl_dijkstra_create(map, dest, rl_distance_manhattan, rl_graph_neighbors_ordinal_passable);
+ *  RL_Graph graph = rl_graph_create_scored(map, dest, rl_graph_score_manhattan, rl_graph_neighbors_ordinal_passable);
  *  // Then find start point in graph
  *  RL_GraphNode *node = rl_graph_node(graph, start);
  *  // Then, you "roll downhill" from the start point
  *  if (node != NULL) {
- *    RL_GraphNode *lowest_neighbor = rl_graph_node_lowest_neighbor(graph, node);
+ *    RL_GraphNode *lowest_neighbor = rl_graph_node_lowest_neighbor(graph, map, node);
  *    // The next point in the path is lowest_neighbor->point
  *    if (lowest_neighbor) move_player(lowest_neighbor->point);
  *    ...
@@ -109,7 +115,6 @@
  *
  *
  * Preprocessor definitions (define these before including roguelike.h to customize internals):
- *
  *
  *  RL_IMPLEMENTATION                 Define this to compile the library - should only be defined once in one file
  *  RL_MAX_NEIGHBOR_COUNT             Maximum neighbor count for Dijkstra graphs (defaults to 8). Used in the rl_graph_* functions so we avoid malloc'ing every time we need to look up neighbors.
@@ -263,9 +268,7 @@ RL_Status rl_mapgen_bsp(RL_Map map, RL_MapgenConfigBSP config);
  *
  * This allocates memory for the BSP children - make sure to use rl_bsp_destroy or free them yourself. Note that this
  * does not set the tiles to RL_TileRock before generation. This way you can have separate regions of the map with
- * different mapgen algorithms. 
- * 
- * TODO FIXME */
+ * different mapgen algorithms. */
 RL_Status rl_mapgen_bsp_ex(RL_Map map, RL_BSP *bsp, const RL_MapgenConfigBSP *config);
 
 /* The config for BSP map generation - note that the dimensions *include* the walls on both sides, so the min room width
@@ -538,10 +541,6 @@ RL_Path *rl_path_walk(RL_Path *path);
 /* Frees the path & all linked nodes. */
 void rl_path_destroy(RL_Path *path);
 
-/**
- * TODO when creating, accept by pointer???
- */
-
 /* Create pre-scored Dijkstra map from supplied RL_Map
  *
  * You can use Dijkstra maps for pathfinding, simple AI, and much more. As with all Dijkstra maps, you just walk the
@@ -563,7 +562,7 @@ RL_Graph rl_graph_create_scored(const RL_Map map, RL_Point start, RL_ScoreFun sc
  * point.
  *
  * You need to score the graph after creation - for simpler use cases you can just call rl_path_create to create a path
- * without the re-usable graph structure, or use rl_dijkstra_create_and_score.
+ * without the re-usable graph structure, or use rl_graph_create_scored.
  *
  * Make sure to destroy the resulting RL_Graph with rl_graph_destroy. */
 RL_Graph rl_graph_create_from_map(const RL_Map map, RL_NeighborsFun neighbors_f);
@@ -589,7 +588,7 @@ void rl_graph_score(RL_Graph graph, const RL_Map map, RL_Point start, RL_ScoreFu
  *
  * Params:
  *  graph       - Dijkstra graph to be scored.
- *  context     - Passed to the score & neighbor functions in the graph struct. By default, use rl_dijkstra_context -
+ *  context     - Passed to the score & neighbor functions in the graph struct. By default, use rl_graph_context -
  *                if you are using custom score/neighbor funcs pass your user context here.
  *  start       - Start point for the graph. To path from point a to point b pass point b to this function, then walk
  *                the map by picking the lowest scored neighbor from point a until you reach the destination.
@@ -1504,7 +1503,6 @@ RL_Status rl_mapgen_automata_ex(RL_Map map, unsigned int offset_x, unsigned int 
          * connects it to another random region. This is pretty slow and can be optimized in the future, but works for
          * now. */
 
-        /* TODO can remove reliance of heap here by just using 2 floodfill graph */
         RL_Graph floodfill = rl_graph_create_from_map(map, NULL);
         /* fill floodfills array with a floodfill of each connected space */
         bool is_scored = false;
@@ -2227,10 +2225,12 @@ RL_Point rl_point(unsigned int x, unsigned int y)
     return (RL_Point) { .x = (float) x, .y = (float) y };
 }
 
-// TODO check for max int
+// TODO better bounds checking
 RL_Point rl_point_axial(unsigned int x, unsigned int y)
 {
     RL_Point point;
+
+    RL_ASSERT(x < INT_MAX && y < INT_MAX);
 
     int x_ = x;
     int y_ = y;
