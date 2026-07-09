@@ -20,7 +20,7 @@ int main(int argc, char **argv)
     }
     srand(seed);
 
-    RL_Map *map = rl_map_create(MAP_WIDTH, MAP_HEIGHT);
+    RL_Map map = rl_map_create(MAP_WIDTH, MAP_HEIGHT);
     system("clear");
 
     // draw a line on the screen with step of 1
@@ -33,7 +33,7 @@ int main(int argc, char **argv)
     }
     print_at(start.x, start.y, 's');
     print_at(end.x, end.y, 'x');
-    print_at(0, map->height, '\n');
+    print_at(0, map.height, '\n');
 
     // draw the same line on the screen with step of 0.5
     int offset = MAP_HEIGHT + 2;
@@ -48,7 +48,7 @@ int main(int argc, char **argv)
     }
     print_at(start.x*2, offset + start.y*2, 's');
     print_at(end.x*2, offset + end.y*2, 'x');
-    print_at(0, offset + map->height, '\0');
+    print_at(0, offset + map.height, '\0');
     printf("Seed: %zu\n", seed);
 
     rl_map_destroy(map);

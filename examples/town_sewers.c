@@ -51,15 +51,15 @@ int main(void)
     // generate town map
     RL_MapgenConfigBSP config = RL_MAPGEN_BSP_DEFAULTS;
     RL_BSP bsp = { .width = WIDTH, .height = HEIGHT };
-    rl_mapgen_bsp_ex(&map, &bsp, &config); // ex is used since rl_mapgen will reset our tiles to RL_TileRock
+    rl_mapgen_bsp_ex(map, &bsp, &config); // ex is used since rl_mapgen will reset our tiles to RL_TileRock
     // find random corridor tile to place downstair & player
     unsigned int downstair_x = WIDTH, downstair_y = HEIGHT;
-    while (!(rl_map_tile_is(&map, downstair_x, downstair_y, RL_TileCorridor))) {
+    while (!(rl_map_tile_is(map, downstair_x, downstair_y, RL_TileCorridor))) {
         downstair_x = rl_rng_generate(0, WIDTH - 1);
         downstair_y = rl_rng_generate(0, HEIGHT - 1);
     }
     unsigned int player_x = WIDTH, player_y = HEIGHT;
-    while (!(rl_map_tile_is(&map, player_x, player_y, RL_TileCorridor))) {
+    while (!(rl_map_tile_is(map, player_x, player_y, RL_TileCorridor))) {
         player_x = rl_rng_generate(0, WIDTH - 1);
         player_y = rl_rng_generate(0, HEIGHT - 1);
     }
@@ -68,12 +68,12 @@ int main(void)
     bool quit = 0;
     while (!quit) {
         // calculate FOV
-        rl_fov_calculate(&fov, &map, player_x, player_y, -1);
+        rl_fov_calculate(fov, map, player_x, player_y, -1);
         // draw map
         move(0, 0);
         for (unsigned int y=0; y < HEIGHT; ++y) {
             for (unsigned int x=0; x < WIDTH; ++x) {
-                if (rl_fov_is_visible(&fov, x, y)) {
+                if (rl_fov_is_visible(fov, x, y)) {
                     RL_Byte t = map.tiles[y*WIDTH + x];
                     if (x == downstair_x && y == downstair_y) t = '>';
                     if (x == player_x && y == player_y) t = '@';
@@ -123,29 +123,29 @@ int main(void)
         }
         if ((new_x == downstair_x && new_y == downstair_y) || ch == '>') {
             // generate a new map - for this one, we generate a maze first then BSP rooms
-            if (rl_mapgen_maze(&map) != RL_OK) {
+            if (rl_mapgen_maze(map) != RL_OK) {
                 fprintf(stderr, "Error while generating map!\n");
                 return 1;
             }
             rl_bsp_destroy(bsp.left);
             rl_bsp_destroy(bsp.right);
             bsp.left = bsp.right = NULL;
-            if (rl_mapgen_bsp_ex(&map, &bsp, &config) != RL_OK) {
+            if (rl_mapgen_bsp_ex(map, &bsp, &config) != RL_OK) {
                 fprintf(stderr, "Error while generating map!\n");
                 return 1;
             }
             // find passable tile for player & downstair
             player_x = player_y = downstair_x = downstair_y -1;
-            while (!(rl_map_tile_is(&map, downstair_x, downstair_y, RL_TileRoom))) {
+            while (!(rl_map_tile_is(map, downstair_x, downstair_y, RL_TileRoom))) {
                 downstair_x = rl_rng_generate(0, WIDTH - 1);
                 downstair_y = rl_rng_generate(0, HEIGHT - 1);
             }
-            while (!(rl_map_tile_is(&map, player_x, player_y, RL_TileRoom))) {
+            while (!(rl_map_tile_is(map, player_x, player_y, RL_TileRoom))) {
                 player_x = rl_rng_generate(0, WIDTH - 1);
                 player_y = rl_rng_generate(0, HEIGHT - 1);
             }
-            assert(rl_map_is_passable(&map, player_x, player_y));
-        } else if (rl_map_is_passable(&map, new_x, new_y)) {
+            assert(rl_map_is_passable(map, player_x, player_y));
+        } else if (rl_map_is_passable(map, new_x, new_y)) {
             player_x = new_x;
             player_y = new_y;
         }

@@ -64,7 +64,7 @@ int main(int argc, char **argv)
     }
     printf("Seed: %ld\n", seed);
     srand(seed);
-    RL_Map *map = rl_map_create(WIDTH, HEIGHT);
+    RL_Map map = rl_map_create(WIDTH, HEIGHT);
     RL_MapgenConfigBSP config = {
         .room_min_width = 4,
         .room_max_width = 8,
@@ -98,7 +98,7 @@ int main(int argc, char **argv)
     // render the map
     for (y = 0; y < HEIGHT; ++y) {
         for (x = 0; x < WIDTH; ++x) {
-            RL_Tile t = map->tiles[map->width*y + x];
+            RL_Tile t = map.tiles[map.width*y + x];
             switch (t) {
                 case RL_TileRock:
                     ;

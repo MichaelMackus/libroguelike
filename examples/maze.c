@@ -20,17 +20,17 @@ int main(int argc, const char **argv)
     srand(seed);
     srand(seed);
 
-    RL_Map *map = rl_map_create(WIDTH, HEIGHT);
+    RL_Map map = rl_map_create(WIDTH, HEIGHT);
     if (rl_mapgen_maze(map) != RL_OK) {
         fprintf(stderr, "Error during mapgen\n");
         return 1;
     }
 
     /* floodfill to ensure it is a proper maze */
-    RL_Graph *floodfill = rl_graph_floodfill_largest_area(map);
+    RL_Graph floodfill = rl_graph_floodfill_largest_area(map);
     for (unsigned int y = 0; y < HEIGHT; ++y) {
         for (unsigned int x = 0; x < WIDTH; ++x) {
-            if (floodfill->nodes[x + y*WIDTH].score < FLT_MAX) {
+            if (floodfill.nodes[x + y*WIDTH].score < FLT_MAX) {
                 printf("*");
             } else {
                 printf(" ");
@@ -38,9 +38,9 @@ int main(int argc, const char **argv)
         }
         printf("\n");
     }
-    for (unsigned int x = 0; x < map->width; ++x) {
-        for (unsigned int y = 0; y < map->height; ++y) {
-            if (!rl_map_tile_is(map, x, y, RL_TileRock) && floodfill->nodes[x + y*map->width].score == FLT_MAX) {
+    for (unsigned int x = 0; x < map.width; ++x) {
+        for (unsigned int y = 0; y < map.height; ++y) {
+            if (!rl_map_tile_is(map, x, y, RL_TileRock) && floodfill.nodes[x + y*map.width].score == FLT_MAX) {
                 assert("ERROR: Unreachable tile found!" == 0);
             }
         }
@@ -48,9 +48,9 @@ int main(int argc, const char **argv)
     rl_graph_destroy(floodfill);
 
     /* print the maze */
-    for (unsigned int y=0; y<map->height; ++y) {
-        for (unsigned int x=0; x<map->width; ++x) {
-            RL_Tile t = map->tiles[x + y*map->width];
+    for (unsigned int y=0; y<map.height; ++y) {
+        for (unsigned int x=0; x<map.width; ++x) {
+            RL_Tile t = map.tiles[x + y*map.width];
             if (t == RL_TileRock) {
                 wchar_t ch;
                 long connections = rl_map_wall(map, x, y);

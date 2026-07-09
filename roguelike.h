@@ -41,7 +41,7 @@
  * with the algorithm you wish to use for mapgen. For example:
  *
  *   srand(time(0)); // seed the RNG
- *   RL_Map *map = rl_map_create(80, 25);
+ *   RL_Map map = rl_map_create(80, 25);
  *   if (rl_mapgen_bsp(map, RL_MAPGEN_BSP_DEFAULTS) != RL_OK) {
  *     printf("Error occurred during mapgen!\n");
  *   }
@@ -95,7 +95,7 @@
  * RL_GraphNode has a score of FLT_MAX it has not been scored.
  *
  *  // Typically you provide destination for the initial Dijkstra graph
- *  RL_Graph *graph = rl_dijkstra_create(map, dest, rl_distance_manhattan, rl_graph_neighbors_ordinal_passable);
+ *  RL_Graph graph = rl_dijkstra_create(map, dest, rl_distance_manhattan, rl_graph_neighbors_ordinal_passable);
  *  // Then find start point in graph
  *  RL_GraphNode *node = rl_graph_node(graph, start);
  *  // Then, you "roll downhill" from the start point
@@ -209,10 +209,10 @@ typedef enum {
  */
 
 /* Creates an empty map. Make sure to call rl_map_destroy to clear memory. */
-RL_Map *rl_map_create(unsigned int width, unsigned int height);
+RL_Map rl_map_create(unsigned int width, unsigned int height);
 
 /* Frees the map & internal memory. */
-void rl_map_destroy(RL_Map *map);
+void rl_map_destroy(RL_Map map);
 
 /* Enum representing the type of corridor connection algorithm. RL_ConnectRandomly is the default and results in the
  * most interesting & aesthetic maps. */
@@ -256,15 +256,17 @@ typedef enum {
 } RL_Status;
 
 /* Generate map with recursive BSP split algorithm. This fills the map tiles with RL_TileRock before generation. */
-RL_Status rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config);
+RL_Status rl_mapgen_bsp(RL_Map map, RL_MapgenConfigBSP config);
 
 /* Generates map with recursive BSP split algorithm. This splits the BSP pointer passed, and uses the BSP to constrain
  * the dimensions of the map generation.
  *
  * This allocates memory for the BSP children - make sure to use rl_bsp_destroy or free them yourself. Note that this
  * does not set the tiles to RL_TileRock before generation. This way you can have separate regions of the map with
- * different mapgen algorithms. */
-RL_Status rl_mapgen_bsp_ex(RL_Map *map, RL_BSP *bsp, const RL_MapgenConfigBSP *config);
+ * different mapgen algorithms. 
+ * 
+ * TODO FIXME */
+RL_Status rl_mapgen_bsp_ex(RL_Map map, RL_BSP *bsp, const RL_MapgenConfigBSP *config);
 
 /* The config for BSP map generation - note that the dimensions *include* the walls on both sides, so the min room width
  * & height the library accepts is 3. */
@@ -293,38 +295,38 @@ typedef struct {
 }
 
 /* Generate map with cellular automata. This clears out the previous tiles before generation. */
-RL_Status rl_mapgen_automata(RL_Map *map, RL_MapgenConfigAutomata config);
+RL_Status rl_mapgen_automata(RL_Map map, RL_MapgenConfigAutomata config);
 
 /* Same as above function, but constrains generation according to passed dimensions. */
-RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int x, unsigned int y, unsigned int width, unsigned int height,  const RL_MapgenConfigAutomata *config);
+RL_Status rl_mapgen_automata_ex(RL_Map map, unsigned int x, unsigned int y, unsigned int width, unsigned int height,  const RL_MapgenConfigAutomata *config);
 
 /* Generate map with a random maze (via simplistic BFS). Tiles are carved with RL_TileCorridor. Fully connected. */
-RL_Status rl_mapgen_maze(RL_Map *map);
+RL_Status rl_mapgen_maze(RL_Map map);
 
 /* Generate map with a random maze (via simplistic BFS). Tiles are carved with RL_TileCorridor. Fully connected. */
-RL_Status rl_mapgen_maze_ex(RL_Map *map, unsigned int x, unsigned int y, unsigned int width, unsigned int height);
+RL_Status rl_mapgen_maze_ex(RL_Map map, unsigned int x, unsigned int y, unsigned int width, unsigned int height);
 
 /* Connect map via corridors using the supplied BSP graph. */
-RL_Status rl_mapgen_connect_corridors(RL_Map *map, RL_BSP *root, bool draw_doors, RL_MapgenCorridorConnection connection_algorithm);
+RL_Status rl_mapgen_connect_corridors(RL_Map map, RL_BSP *root, bool draw_doors, RL_MapgenCorridorConnection connection_algorithm);
 
 /**
  * Generic map helper functions.
  */
 
 /* Verifies a coordinates is within bounds of map. */
-bool rl_map_in_bounds(const RL_Map *map, unsigned int x, unsigned int y);
+bool rl_map_in_bounds(const RL_Map map, unsigned int x, unsigned int y);
 
 /* Checks if a tile is passable. */
-bool rl_map_is_passable(const RL_Map *map, unsigned int x, unsigned int y);
+bool rl_map_is_passable(const RL_Map map, unsigned int x, unsigned int y);
 
 /* Checks if a tile is opaque (for FOV calculations). */
-bool rl_map_is_opaque(const RL_Map *map, unsigned int x, unsigned int y);
+bool rl_map_is_opaque(const RL_Map map, unsigned int x, unsigned int y);
 
 /* Get tile at point */
-RL_Byte *rl_map_tile(const RL_Map *map, unsigned int x, unsigned int y);
+RL_Byte *rl_map_tile(const RL_Map map, unsigned int x, unsigned int y);
 
 /* Returns 1 if tile at point matches given parameter. */
-bool rl_map_tile_is(const RL_Map *map, unsigned int x, unsigned int y, RL_Byte tile);
+bool rl_map_tile_is(const RL_Map map, unsigned int x, unsigned int y, RL_Byte tile);
 
 /* Type of wall on the map - idea is they can be bitmasked together (e.g. for corners). See rl_map_wall and other
  * related functions. */
@@ -340,19 +342,19 @@ typedef enum {
  *
  * Returns a bitmask of the RL_Wall enum. For example, a wall with a wall tile to the south, west, and east would have a
  * bitmask of 0b1011. */
-RL_Byte rl_map_wall(const RL_Map *map, unsigned int x, unsigned int y);
+RL_Byte rl_map_wall(const RL_Map map, unsigned int x, unsigned int y);
 
 /* Is the tile a wall tile? */
-bool rl_map_is_wall(const RL_Map *map, unsigned int x, unsigned int y);
+bool rl_map_is_wall(const RL_Map map, unsigned int x, unsigned int y);
 
 /* Is the wall a corner? */
-bool rl_map_is_corner_wall(const RL_Map *map, unsigned int x, unsigned int y);
+bool rl_map_is_corner_wall(const RL_Map map, unsigned int x, unsigned int y);
 
 /* Is this a wall that is touching a room tile? */
-bool rl_map_is_room_wall(const RL_Map *map, unsigned int x, unsigned int y);
+bool rl_map_is_room_wall(const RL_Map map, unsigned int x, unsigned int y);
 
 /* A wall that is touching a room tile (e.g. to display it lit). */
-RL_Byte rl_map_room_wall(const RL_Map *map, unsigned int x, unsigned int y);
+RL_Byte rl_map_room_wall(const RL_Map map, unsigned int x, unsigned int y);
 
 /**
  * Simple priority queue implementation
@@ -456,18 +458,24 @@ typedef struct RL_GraphNode {
     RL_Point point;
 } RL_GraphNode;
 
-/* Represents a graph of pathfinding nodes that have been scored for pathfinding (e.g. with the Dijkstra algorithm). */
-typedef struct RL_Graph {
-    size_t length; /* length of nodes */
-    RL_GraphNode *nodes; /* array of nodes - length will be the size of the map.width * map.height */
-    const void *context; /* by default this is the RL_Map - this is void* so user does not have to rely on RL_Map */
-    size_t (*neighbors)(const struct RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors); /** see: RL_NeighborsFun below */
-} RL_Graph;
+/* Custom distance function for pathfinding - calculates distance between map nodes - simpler version of ScoreFun */
+typedef float (*RL_DistanceFun)(RL_Point from, RL_Point to);
+
+/* Custom score function for pathfinding. This gives flexibility in weighting the Dijkstra graph. Note that Dijkstra
+ * expects you to add the current node's score to the newly calculated score. */
+typedef float (*RL_ScoreFun)(void *context, const RL_GraphNode *current, const RL_GraphNode *neighbor);
 
 /* Returns count of neighbors & populates neighbors array with pointers to the neighbors in the graph.
  *
  * NOTE: The count of neighbors must not exceed RL_MAX_NEIGHBOR_COUNT */
-typedef size_t (*RL_NeighborsFun)(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors);
+typedef size_t (*RL_NeighborsFun)(void *context, RL_Point point, RL_GraphNode **neighbors);
+
+/* Represents a graph of pathfinding nodes that have been scored for pathfinding (e.g. with the Dijkstra algorithm). */
+typedef struct RL_Graph {
+    size_t length; /* length of nodes */
+    RL_GraphNode *nodes; /* array of nodes - length will be the size of the map.width * map.height */
+    RL_NeighborsFun neighbors; /* function to retrieve array of connected neighbors from given node */
+} RL_Graph;
 
 /* A path is a linked list of paths. You can "walk" a path using rl_path_walk which will simultaneously free the
  * previous path. */
@@ -480,29 +488,24 @@ typedef struct RL_Path {
 float rl_distance_manhattan(RL_Point node, RL_Point end);
 float rl_distance_euclidian(RL_Point node, RL_Point end);
 float rl_distance_chebyshev(RL_Point node, RL_Point end);
+/** Default Dijkstra graph scoring functions for pathfinding **/
+float rl_graph_score_manhattan(void *context, const RL_GraphNode *current, const RL_GraphNode *neighbor);
+float rl_graph_score_euclidian(void *context, const RL_GraphNode *current, const RL_GraphNode *neighbor);
+float rl_graph_score_chebyshev(void *context, const RL_GraphNode *current, const RL_GraphNode *neighbor);
 
-/* Returns up to 8 passable neighbors (including diagonals).
- *
- * By default, passing NULL to neighbors_f params during scoring will use this to ensure only passable neighbors are
- * scored */
-size_t rl_graph_neighbors_ordinal_passable(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors);
+/** Default Dijkstra graph neighbor functions **/
+/* Returns up to 8 passable neighbors (including diagonals). */
+size_t rl_graph_neighbors_ordinal_passable(void *context, RL_Point point, RL_GraphNode **neighbors);
 /* Returns up to 4 passable neighbors (if you do not use diagonal movement you can use this for neighbors_f) */
-size_t rl_graph_neighbors_cardinal_passable(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors);
+size_t rl_graph_neighbors_cardinal_passable(void *context, RL_Point point, RL_GraphNode **neighbors);
 /* Returns up to 8 of any neighbors, passable or not */
-size_t rl_graph_neighbors_ordinal(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors);
+size_t rl_graph_neighbors_ordinal(void *context, RL_Point point, RL_GraphNode **neighbors);
 /* Returns up to 4 of any neighbors, passable or not */
-size_t rl_graph_neighbors_cardinal(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors);
+size_t rl_graph_neighbors_cardinal(void *context, RL_Point point, RL_GraphNode **neighbors);
 /* Returns up to 6 of any neighbors, passable or not (for hex grids using axial points/coordinates) */
-size_t rl_graph_neighbors_axial(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors);
+size_t rl_graph_neighbors_axial(void *context, RL_Point point, RL_GraphNode **neighbors);
 /* Returns up to 6 apassable neighbors (for hex grids using axial points/coordinates) */
-size_t rl_graph_neighbors_axial_passable(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors);
-
-/* Custom distance function for pathfinding - calculates distance between map nodes */
-typedef float (*RL_DistanceFun)(RL_Point from, RL_Point to);
-
-/* Custom score function for pathfinding - most users won't need this, but it gives flexibility in weighting the
- * Dijkstra graph. Note that Dijkstra expects you to add the current node's score to the newly calculated score. */
-typedef float (*RL_ScoreFun)(const RL_GraphNode *current, const RL_GraphNode *neighbor, void *context);
+size_t rl_graph_neighbors_axial_passable(void *context, RL_Point point, RL_GraphNode **neighbors);
 
 /* Convert a map point (int) to RL_Point for pathfinding */
 typedef RL_Point (*RL_PointFun)(unsigned int x, unsigned int y);
@@ -520,13 +523,13 @@ unsigned int rl_axial_to_map_y(RL_Point axial);
 RL_Path *rl_line_create(RL_Point from, RL_Point to, float step);
 
 /* Find a path between start and end via Dijkstra algorithm. Make sure to call rl_path_destroy when done with path.
- * Pass NULL to distance_f to use rough approximation for euclidian.
+ * Pass NULL to score_f to use rough approximation for euclidian.
  * Pass NULL to neighbors_f to allow diagonal paths. */
-RL_Path *rl_path_create(const RL_Map *map, RL_Point start, RL_Point end, RL_DistanceFun distance_f, RL_NeighborsFun neighbors_f);
+RL_Path *rl_path_create(const RL_Map map, RL_Point start, RL_Point end, RL_ScoreFun score_f, RL_NeighborsFun neighbors_f);
 
 /* Find a path between start and end via the scored Dijkstra graph. Make sure to call rl_path_destroy when done with path (or
  * use rl_path_walk). */
-RL_Path *rl_path_create_from_graph(const RL_Graph *graph, RL_Point start);
+RL_Path *rl_path_create_from_graph(const RL_Graph graph, const RL_Map map, RL_Point start);
 
 /* Convenience function to "walk" the path. This will return the next path, freeing the current path. You do not need to
  * call rl_path_destroy if you walk the full path. */
@@ -535,64 +538,112 @@ RL_Path *rl_path_walk(RL_Path *path);
 /* Frees the path & all linked nodes. */
 void rl_path_destroy(RL_Path *path);
 
-/* Dijkstra pathfinding algorithm. Pass NULL to distance_f to use rough approximation for euclidian, and NULL to
- * neighbors_f to score each of 8 passable (diagonal) neighbors for each point.
+/**
+ * TODO when creating, accept by pointer???
+ */
+
+/* Create pre-scored Dijkstra map from supplied RL_Map 
  *
- * You can use Dijkstra maps for pathfinding, simple AI, and much more. For example, by setting the player point to
- * "start" then you can pick the highest scored tile in the map and set that as the new "start" point. As with all
- * Dijkstra maps, you just walk the map by picking the lowest scored neighbor. This is a simplistic AI resembling a
- * wounded NPC fleeing from the player.
+ * You can use Dijkstra maps for pathfinding, simple AI, and much more. As with all Dijkstra maps, you just walk the
+ * map by picking the lowest scored neighbor.
+ *
+ * Params:
+ *  map         - 2d map already populated with tiles to traverse with Dijkstra. Tiles are traversed according to the
+ *                passed neighbors_f.
+ *  start       - Start point for the graph. To path from point a to point b pass point b to this function, then walk
+ *                the map by picking the lowest scored neighbor from point a until you reach the destination.
+ *  neighbors_f - Populates the neighbors for a point in the graph; rl_graph_neighbors_* functions exist for common map 2d
+ *                layouts. Pass NULL to use rl_graph_neighbors_ordinal_passable (8 passable neighbors including diagonals).
+ *  distance_f  - Calculates the distance between nodes in the graph. This is used for scoring. Pass NULL to use
+ *                rl_distance_simple which is a rough approximation of euclidian distance.
+ *  point_f     - Converts the Map uint x,y point to RL_Point2d. Pass NULL to use rl_point which uses C typecasting.
+ */
+RL_Graph rl_graph_create_scored(const RL_Map map, RL_Point start, RL_ScoreFun score_f, RL_NeighborsFun neighbors_f, RL_PointFun point_f);
+
+/* Dijkstra pathfinding algorithm. Pass NULL to neighbors_f to score each of 8 passable (diagonal) neighbors for each
+ * point. Pass NULL to point_f to use simple type-casting for point conversion (i.e. for 2d square maps).
+ *
+ * You need to score the graph after creation - for simpler use cases you can just call rl_path_create to create a path
+ * without the re-usable graph structure, or use rl_dijkstra_create_and_score.
  *
  * Make sure to destroy the resulting RL_Graph with rl_graph_destroy. */
-RL_Graph *rl_dijkstra_create(const RL_Map *map,
-                            RL_Point start,
-                            RL_DistanceFun distance_f,
-                            RL_NeighborsFun neighbors_f);
+RL_Graph rl_graph_create_from_map(const RL_Map map, RL_NeighborsFun neighbors_f, RL_PointFun point_f);
 
-/* Dijkstra pathfinding algorithm. Uses RL_Graph so that your code doesn't need to rely on RL_Map. Each node's
- * distance should equal FLT_MAX in the resulting graph if it is impassable. */
-void rl_dijkstra_score(RL_Graph *graph, RL_Point start, RL_DistanceFun distance_f);
+/* Lower level version of above function. Creates graph without relying on internal map data struct.
+ *
+ * Make sure to destroy the resulting RL_Graph with rl_graph_destroy. */
+RL_Graph rl_graph_create(unsigned int map_width, unsigned int map_height, RL_NeighborsFun neighbors_f, RL_PointFun point_f);
 
-/* Dijkstra pathfinding algorithm for advanced use cases such as weighting certain tiles higher than others. Uses
- * RL_Graph so that your code doesn't need to rely on RL_Map. Each node's distance should equal FLT_MAX in the resulting
- * graph if it is impassable. Most users should just use rl_dijkstra_score - only use this if you have a specific need. */
-void rl_dijkstra_score_ex(RL_Graph *graph, RL_Point start, RL_ScoreFun score_f, void *score_context);
+/* Scores the graph with the Dijkstra algorithm.
+ *
+ * Params:
+ *  graph       - Dijkstra graph to be scored.
+ *  map         - 2d map already populated with tiles to traverse with Dijkstra.
+ *  start       - Start point for the graph. To path from point a to point b pass point b to this function, then walk
+ *                the map by picking the lowest scored neighbor from point a until you reach the destination.
+ *  score_f     - Used to calculate distance between points for scoring. Pass one of rl_graph_score_* funcs, or NULL to
+ *                use approximation for euclidian distace.
+ */
+void rl_graph_score(RL_Graph graph, const RL_Map map, RL_Point start, RL_ScoreFun score_f);
+
+/* Scores the graph with the Dijkstra algorithm. Generic version of above function.
+ *
+ * Params:
+ *  graph       - Dijkstra graph to be scored.
+ *  context     - Passed to the score & neighbor functions in the graph struct. By default, use rl_dijkstra_context -
+ *                if you are using custom score/neighbor funcs pass your user context here.
+ *  start       - Start point for the graph. To path from point a to point b pass point b to this function, then walk
+ *                the map by picking the lowest scored neighbor from point a until you reach the destination.
+ *  score_f     - Used to calculate distance between points for scoring. Pass one of rl_graph_score_* funcs, or NULL to
+ *                use approximation for euclidian distace.
+ */
+void rl_graph_score_with_context(RL_Graph graph, void *context, RL_Point start, RL_ScoreFun score_f);
+
+/* The default context passed to RL_ScoreFun and RL_NeighborsFun - if custom user context is passed, this is ignored */
+typedef struct RL_GraphContext {
+    RL_Map map;
+    RL_Graph graph;
+} RL_GraphContext;
+
+/* Generates the default Dijkstra context for scoring. */
+RL_GraphContext rl_graph_context(const RL_Graph graph, const RL_Map map);
 
 /* Returns a the largest connected area (of passable tiles) on the map. Make sure to destroy the graph with
  * rl_graph_destroy after you are done. */
-RL_Graph *rl_graph_floodfill_largest_area(const RL_Map *map);
-
-/* Create an unscored graph based on the 2d map. Make sure to call rl_graph_destroy when finished. */
-/* Pass NULL to neighbors_f to score each of 8 passable (diagonal) neighbors for each point.
- * Pass NULL to point_f to generate points by simple C type casting (e.g. for 2d square grid). */
-RL_Graph *rl_graph_create(const RL_Map *map, RL_NeighborsFun neighbors_f, RL_PointFun point_f);
+RL_Graph rl_graph_floodfill_largest_area(const RL_Map map);
 
 /* Reset scores of Dijkstra map */
-void rl_graph_reset(RL_Graph *graph);
+void rl_graph_reset(RL_Graph graph);
 
 /* Add two graphs together, adding their scores */
 /* Note that this assumes the graph lengths are identical */
-void rl_graph_add(RL_Graph *graph, const RL_Graph *graph_b);
+void rl_graph_add(RL_Graph graph, const RL_Graph graph_b);
+
+/* Combine two graphs together - sets each unscored node to the scored node in the other graph 
+ * If each graph has scored nodes at the same point, uses the score of first graph */
+void rl_graph_combine(RL_Graph graph, const RL_Graph graph_b);
 
 /* Multiply the scores of a graph by a coefficient (e.g. to weight a graph) */
-void rl_graph_weight(RL_Graph *graph, float coefficient);
+void rl_graph_weight(RL_Graph graph, float coefficient);
 
 /* Frees the graph & internal memory. */
-void rl_graph_destroy(RL_Graph *graph);
+void rl_graph_destroy(RL_Graph graph);
 
 /* Checks if coordinate is scored in graph (e.g. its score is less than FLT_MAX). */
-bool rl_graph_is_scored(const RL_Graph *graph, RL_Point point);
+bool rl_graph_is_scored(const RL_Graph graph, RL_Point point);
 
 /* Returns the node of a point within a graph if it exists. */
-RL_GraphNode *rl_graph_node(const RL_Graph *graph, RL_Point point);
+RL_GraphNode *rl_graph_node(const RL_Graph graph, RL_Point point);
 
-/* Returns the lowest scored neighbor within the set of neighbors for a graph node. Returns NULL if none are scored. */
-RL_GraphNode *rl_graph_node_lowest_neighbor(const RL_Graph *graph, const RL_GraphNode *node);
+/* Returns the lowest scored neighbor within the set of neighbors for a graph node. Returns NULL if none are scored.
+ * Pass the RL_Map as the context unless you are using a custom RL_NeighborsFun. */
+RL_GraphNode *rl_graph_node_lowest_neighbor(const RL_Graph graph, const RL_Map map, const RL_GraphNode *node);
 
 /* Returns the next lowest scored neighbor within the set of neighbors for a graph node. Passing NULL to neighbor is
  * functionally equivalent to calling rl_graph_node_lowest_neighbor. This allows you to easily walk through the
- * scored neighbors in a graph. */
-RL_GraphNode *rl_graph_node_next_neighbor(const RL_Graph *graph, const RL_GraphNode *node, const RL_GraphNode *neighbor);
+ * scored neighbors in a graph.
+ * Pass the RL_Map as the context unless you are using a custom RL_NeighborsFun. */
+RL_GraphNode *rl_graph_node_next_neighbor(const RL_Graph graph, const RL_Map map, const RL_GraphNode *start_node, const RL_GraphNode *current_neighbor);
 
 /* Sort the array of neighbors */
 void rl_graph_node_sort_neighbors(RL_GraphNode **neighbors, size_t neighbors_count);
@@ -614,10 +665,10 @@ typedef struct {
 } RL_FOV;
 
 /* Creates empty FOV and fills it with opaque tiles. Make sure to call rl_fov_destroy to clear memory. */
-RL_FOV *rl_fov_create(unsigned int width, unsigned int height);
+RL_FOV rl_fov_create(unsigned int width, unsigned int height);
 
 /* Frees the FOV & internal memory. */
-void rl_fov_destroy(RL_FOV *fov);
+void rl_fov_destroy(RL_FOV fov);
 
 /* Function to determine if a tile is within the range of the FOV. Returns true if point is in range. */
 typedef bool (*RL_IsInRangeFun)(unsigned int x, unsigned int y, void *context);
@@ -631,7 +682,7 @@ typedef void (*RL_MarkAsVisibleFun)(unsigned int x, unsigned int y, void *contex
  * this is limited by RL_MAX_RECURSION).
  *
  * Note that this sets previously visible tiles to RL_TileSeen. */
-void rl_fov_calculate(RL_FOV *fov, const RL_Map *map, unsigned int x, unsigned int y, int fov_radius);
+void rl_fov_calculate(RL_FOV fov, const RL_Map map, unsigned int x, unsigned int y, int fov_radius);
 
 /* Calculate FOV using simple shadowcasting algorithm. Set fov_radius to a negative value to have unlimited FOV (note
  * this is limited by RL_MAX_RECURSION).
@@ -640,10 +691,10 @@ void rl_fov_calculate(RL_FOV *fov, const RL_Map *map, unsigned int x, unsigned i
 void rl_fov_calculate_ex(void *context, unsigned int x, unsigned int y, RL_IsInRangeFun in_range_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f);
 
 /* Checks if a point is visible within FOV. Make sure to call rl_fov_calculate first. */
-bool rl_fov_is_visible(const RL_FOV *map, unsigned int x, unsigned int y);
+bool rl_fov_is_visible(const RL_FOV map, unsigned int x, unsigned int y);
 
 /* Checks if a point has been seen within FOV. Make sure to call rl_fov_calculate first. */
-bool rl_fov_is_seen(const RL_FOV *map, unsigned int x, unsigned int y);
+bool rl_fov_is_seen(const RL_FOV map, unsigned int x, unsigned int y);
 
 /**
  * Random number generation
@@ -658,10 +709,10 @@ unsigned int rl_rng_generate(unsigned int min, unsigned int max);
  * The file is a FILE pointer (void* so we don't have to depend on stdio).
  */
 
-bool rl_file_save_map(const RL_Map *data, void *file);
-bool rl_file_load_map(RL_Map **data, void *file);
-bool rl_file_save_fov(const RL_FOV *data, void *file);
-bool rl_file_load_fov(RL_FOV **data, void *file);
+bool rl_file_save_map(const RL_Map data, void *file);
+bool rl_file_load_map(RL_Map *data, void *file);
+bool rl_file_save_fov(const RL_FOV data, void *file);
+bool rl_file_load_fov(RL_FOV *data, void *file);
 #endif /* RL_ROGUELIKE_H */
 
 #ifdef RL_IMPLEMENTATION
@@ -711,6 +762,9 @@ bool rl_file_load_fov(RL_FOV **data, void *file);
 #ifndef RL_IS_WALL_TILE
 #define RL_IS_WALL_TILE(t, x, y) (!RL_IS_PASSABLE(t,x,y) || t == RL_TileDoor || t == RL_TileDoorOpen)
 #endif
+#ifndef RL_IN_BOUNDS
+#define RL_IN_BOUNDS(map, x, y) (x < map.width && y < map.height)
+#endif
 
 #ifndef RL_PASSABLE_F
 #define RL_PASSABLE_F rl_map_is_passable
@@ -756,72 +810,68 @@ bool rl_file_load_fov(RL_FOV **data, void *file);
 #include <math.h>
 #endif
 
-RL_Map *rl_map_create(unsigned int width, unsigned int height)
+RL_Map rl_map_create(unsigned int width, unsigned int height)
 {
-    RL_Map *map;
+    RL_Map map = {0};
     unsigned char *memory;
-    RL_ASSERT(width*height < UINT_MAX);
     RL_ASSERT(width > 0 && height > 0);
-    map = NULL;
+    RL_ASSERT(width != UINT_MAX && !(width > UINT_MAX / height)); /* check for overflow */
     /* allocate all the memory we need at once */
-    memory = (unsigned char*) RL_MALLOC(sizeof(*map) + sizeof(*map->tiles)*width*height);
-    RL_ASSERT(memory);
-    if (memory == NULL) return NULL;
-    map = (RL_Map*) memory;
-    RL_ASSERT(map);
-    map->width = width;
-    map->height = height;
-    map->tiles = (RL_Byte*) (memory + sizeof(*map));
-    RL_ASSERT(map->tiles);
-    memset(map->tiles, RL_TileRock, sizeof(*map->tiles)*map->width*map->height);
+    memory = (unsigned char*) RL_MALLOC(sizeof(*map.tiles)*width*height);
+    RL_ASSERT(memory != NULL);
+    if (memory == NULL) return map;
+    map.width = width;
+    map.height = height;
+    map.tiles = (RL_Byte*) memory;
+    memset(map.tiles, RL_TileRock, sizeof(*map.tiles)*map.width*map.height);
 
     return map;
 }
 
-void rl_map_destroy(RL_Map *map)
+void rl_map_destroy(RL_Map map)
 {
-    if (map) {
-        RL_FREE(map);
+    if (map.tiles) {
+        RL_FREE(map.tiles);
     }
 }
 
-bool rl_map_in_bounds(const RL_Map *map, unsigned int x, unsigned int y)
+bool rl_map_in_bounds(const RL_Map map, unsigned int x, unsigned int y)
 {
-    return x < map->width && y < map->height;
+    return RL_IN_BOUNDS(map, x, y);
 }
 
-bool rl_map_is_passable(const RL_Map *map, unsigned int x, unsigned int y)
+bool rl_map_is_passable(const RL_Map map, unsigned int x, unsigned int y)
 {
     if (rl_map_in_bounds(map, x, y)) {
-        return RL_IS_PASSABLE(map->tiles[y * map->width + x], x, y);
+        return RL_IS_PASSABLE(map.tiles[y * map.width + x], x, y);
     }
 
     return 0;
 }
 
-bool rl_map_is_opaque(const RL_Map *map, unsigned int x, unsigned int y)
+bool rl_map_is_opaque(const RL_Map map, unsigned int x, unsigned int y)
 {
     if (!rl_map_in_bounds(map, x, y)) {
         return true;
     }
 
-    return RL_IS_OPAQUE(map->tiles[y * map->width + x], x, y);
+    return RL_IS_OPAQUE(map.tiles[y * map.width + x], x, y);
 }
 
-RL_Byte *rl_map_tile(const RL_Map *map, unsigned int x, unsigned int y)
+RL_Byte *rl_map_tile(const RL_Map map, unsigned int x, unsigned int y)
 {
     if (rl_map_in_bounds(map, x, y)) {
-        return &map->tiles[x + y*map->width];
+        return &map.tiles[x + y*map.width];
     }
 
     return NULL;
 }
 
-bool rl_map_is_wall(const RL_Map *map, unsigned int x, unsigned int y)
+bool rl_map_is_wall(const RL_Map map, unsigned int x, unsigned int y)
 {
     if (!rl_map_in_bounds(map, x, y))
         return 0;
-    if (RL_IS_WALL_TILE(map->tiles[x + y*map->width], x, y)) {
+    if (RL_IS_WALL_TILE(map.tiles[x + y*map.width], x, y)) {
         return RL_PASSABLE_F(map, x, y + 1) ||
                RL_PASSABLE_F(map, x, y - 1) ||
                RL_PASSABLE_F(map, x + 1, y) ||
@@ -835,35 +885,35 @@ bool rl_map_is_wall(const RL_Map *map, unsigned int x, unsigned int y)
     return 0;
 }
 
-static bool rl_map_wall_connects_ew(const RL_Map *map, unsigned int x, unsigned int y)
+static bool rl_map_wall_connects_ew(const RL_Map map, unsigned int x, unsigned int y)
 {
-    return (rl_map_in_bounds(map, x, y - 1) && !RL_IS_WALL_TILE(map->tiles[x+(y-1)*map->width], x, y - 1)) ||
-           (rl_map_in_bounds(map, x, y + 1) && !RL_IS_WALL_TILE(map->tiles[x+(y+1)*map->width], x, y + 1));
+    return (rl_map_in_bounds(map, x, y - 1) && !RL_IS_WALL_TILE(map.tiles[x+(y-1)*map.width], x, y - 1)) ||
+           (rl_map_in_bounds(map, x, y + 1) && !RL_IS_WALL_TILE(map.tiles[x+(y+1)*map.width], x, y + 1));
 }
-static bool rl_map_wall_connects_ns(const RL_Map *map, unsigned int x, unsigned int y)
+static bool rl_map_wall_connects_ns(const RL_Map map, unsigned int x, unsigned int y)
 {
-    return (rl_map_in_bounds(map, x - 1, y) && !RL_IS_WALL_TILE(map->tiles[(x-1)+y*map->width], x - 1, y)) ||
-           (rl_map_in_bounds(map, x + 1, y) && !RL_IS_WALL_TILE(map->tiles[(x+1)+y*map->width], x + 1, y));
+    return (rl_map_in_bounds(map, x - 1, y) && !RL_IS_WALL_TILE(map.tiles[(x-1)+y*map.width], x - 1, y)) ||
+           (rl_map_in_bounds(map, x + 1, y) && !RL_IS_WALL_TILE(map.tiles[(x+1)+y*map.width], x + 1, y));
 }
 
 /* checks if target tile is connecting from source (e.g. they can reach it) */
-RL_Byte rl_map_wall(const RL_Map *map, unsigned int x, unsigned int y)
+RL_Byte rl_map_wall(const RL_Map map, unsigned int x, unsigned int y)
 {
     RL_Byte mask = 0;
     if (!RL_WALL_F(map, x, y))
         return mask;
-    if ((rl_map_in_bounds(map, x + 1, y    ) && RL_IS_WALL_TILE(map->tiles[(x+1)+y*map->width], x + 1, y    )) && (rl_map_wall_connects_ew(map, x, y    ) || rl_map_wall_connects_ew(map, x + 1, y)))
+    if ((rl_map_in_bounds(map, x + 1, y    ) && RL_IS_WALL_TILE(map.tiles[(x+1)+y*map.width], x + 1, y    )) && (rl_map_wall_connects_ew(map, x, y    ) || rl_map_wall_connects_ew(map, x + 1, y)))
         mask |= RL_WallToEast;
-    if ((rl_map_in_bounds(map, x - 1, y    ) && RL_IS_WALL_TILE(map->tiles[(x-1)+y*map->width], x - 1, y    )) && (rl_map_wall_connects_ew(map, x, y    ) || rl_map_wall_connects_ew(map, x - 1, y)))
+    if ((rl_map_in_bounds(map, x - 1, y    ) && RL_IS_WALL_TILE(map.tiles[(x-1)+y*map.width], x - 1, y    )) && (rl_map_wall_connects_ew(map, x, y    ) || rl_map_wall_connects_ew(map, x - 1, y)))
         mask |= RL_WallToWest;
-    if ((rl_map_in_bounds(map, x    , y - 1) && RL_IS_WALL_TILE(map->tiles[x+(y-1)*map->width], x    , y - 1)) && (rl_map_wall_connects_ns(map, x, y    ) || rl_map_wall_connects_ns(map, x    , y - 1)))
+    if ((rl_map_in_bounds(map, x    , y - 1) && RL_IS_WALL_TILE(map.tiles[x+(y-1)*map.width], x    , y - 1)) && (rl_map_wall_connects_ns(map, x, y    ) || rl_map_wall_connects_ns(map, x    , y - 1)))
         mask |= RL_WallToNorth;
-    if ((rl_map_in_bounds(map, x    , y + 1) && RL_IS_WALL_TILE(map->tiles[x+(y+1)*map->width], x    , y + 1)) && (rl_map_wall_connects_ns(map, x, y    ) || rl_map_wall_connects_ns(map, x    , y + 1)))
+    if ((rl_map_in_bounds(map, x    , y + 1) && RL_IS_WALL_TILE(map.tiles[x+(y+1)*map.width], x    , y + 1)) && (rl_map_wall_connects_ns(map, x, y    ) || rl_map_wall_connects_ns(map, x    , y + 1)))
         mask |= RL_WallToSouth;
     return mask ? mask : RL_WallOther;
 }
 
-bool rl_map_is_corner_wall(const RL_Map *map, unsigned int x, unsigned int y)
+bool rl_map_is_corner_wall(const RL_Map map, unsigned int x, unsigned int y)
 {
     int wall = rl_map_wall(map, x, y);
     if (!wall) return 0;
@@ -873,13 +923,13 @@ bool rl_map_is_corner_wall(const RL_Map *map, unsigned int x, unsigned int y)
            (wall & RL_WallToEast && wall & RL_WallToSouth);
 }
 
-bool rl_map_tile_is(const RL_Map *map, unsigned int x, unsigned int y, RL_Byte tile)
+bool rl_map_tile_is(const RL_Map map, unsigned int x, unsigned int y, RL_Byte tile)
 {
     if (!rl_map_in_bounds(map, x, y)) return 0;
-    return map->tiles[x + y*map->width] == tile;
+    return map.tiles[x + y*map.width] == tile;
 }
 
-bool rl_map_is_room_wall(const RL_Map *map, unsigned int x, unsigned int y)
+bool rl_map_is_room_wall(const RL_Map map, unsigned int x, unsigned int y)
 {
     if (!RL_WALL_F(map, x, y))
         return 0;
@@ -894,7 +944,7 @@ bool rl_map_is_room_wall(const RL_Map *map, unsigned int x, unsigned int y)
            rl_map_tile_is(map, x - 1, y + 1, RL_TileRoom);
 }
 
-RL_Byte rl_map_room_wall(const RL_Map *map, unsigned int x, unsigned int y)
+RL_Byte rl_map_room_wall(const RL_Map map, unsigned int x, unsigned int y)
 {
     RL_Byte mask = 0;
     if (!rl_map_is_room_wall(map, x,     y))
@@ -1190,38 +1240,38 @@ size_t rl_bsp_leaf_count(const RL_BSP *root)
     return count;
 }
 
-static void rl_map_bsp_generate_room(RL_Map *map, unsigned int room_width, unsigned int room_height, unsigned int room_x, unsigned int room_y)
+static void rl_map_bsp_generate_room(RL_Map map, unsigned int room_width, unsigned int room_height, unsigned int room_x, unsigned int room_y)
 {
     unsigned int x, y;
-    RL_ASSERT(map && room_width + room_x <= map->width);
-    RL_ASSERT(map && room_height + room_y <= map->height);
-    if (map == NULL) return;
+    RL_ASSERT(map.tiles != NULL && room_width + room_x <= map.width);
+    RL_ASSERT(map.tiles != NULL && room_height + room_y <= map.height);
+    if (map.tiles == NULL) return;
     for (x = room_x; x < room_x + room_width; ++x) {
         for (y = room_y; y < room_y + room_height; ++y) {
             if (x == room_x || x == room_x + room_width - 1 ||
                     y == room_y || y == room_y + room_height - 1
                ) {
                 /* set sides of room to walls */
-                map->tiles[y*map->width + x] = RL_TileRock;
+                map.tiles[y*map.width + x] = RL_TileRock;
             } else {
-                map->tiles[y*map->width + x] = RL_TileRoom;
+                map.tiles[y*map.width + x] = RL_TileRoom;
             }
         }
     }
 }
-static void rl_map_bsp_generate_rooms(RL_BSP *node, RL_Map *map, unsigned int room_min_width, unsigned int room_max_width, unsigned int room_min_height, unsigned int room_max_height, unsigned int room_padding)
+static void rl_map_bsp_generate_rooms(RL_BSP *node, RL_Map map, unsigned int room_min_width, unsigned int room_max_width, unsigned int room_min_height, unsigned int room_max_height, unsigned int room_padding)
 {
-    RL_ASSERT(map);
+    RL_ASSERT(map.tiles != NULL);
     RL_ASSERT(room_min_width < room_max_width);
     RL_ASSERT(room_min_height < room_max_height);
     RL_ASSERT(room_max_width + room_padding*2 < UINT_MAX);
     RL_ASSERT(room_max_height + room_padding*2 < UINT_MAX);
     RL_ASSERT(room_min_width > 2 && room_min_height > 2); /* width of 2 can end up having rooms made of nothing but walls */
-    RL_ASSERT(node && room_min_width < node->width);
-    RL_ASSERT(node && room_min_height < node->height);
-    RL_ASSERT(node && room_max_width <= node->width);
-    RL_ASSERT(node && room_max_height <= node->height);
-    if (map == NULL) return;
+    RL_ASSERT(node != NULL && room_min_width < node->width);
+    RL_ASSERT(node != NULL && room_min_height < node->height);
+    RL_ASSERT(node != NULL && room_max_width <= node->width);
+    RL_ASSERT(node != NULL && room_max_height <= node->height);
+    if (map.tiles == NULL) return;
     if (node && node->left) {
         if (rl_bsp_is_leaf(node->left)) {
             unsigned int room_width, room_height, room_x, room_y;
@@ -1270,36 +1320,36 @@ static void rl_map_bsp_generate_rooms(RL_BSP *node, RL_Map *map, unsigned int ro
     }
 }
 
-RL_Status rl_mapgen_bsp(RL_Map *map, RL_MapgenConfigBSP config)
+RL_Status rl_mapgen_bsp(RL_Map map, RL_MapgenConfigBSP config)
 {
     RL_Status ret;
     RL_BSP *bsp;
-    RL_ASSERT(map);
-    if (map == NULL) return RL_ErrorMemory;
-    bsp = rl_bsp_create(map->width, map->height);
+    RL_ASSERT(map.tiles != NULL);
+    if (map.tiles == NULL) return RL_ErrorNullParameter;
+    bsp = rl_bsp_create(map.width, map.height);
     RL_ASSERT(bsp);
     if (bsp == NULL) return RL_ErrorMemory;
-    memset(map->tiles, RL_TileRock, sizeof(*map->tiles)*map->width*map->height);
+    memset(map.tiles, RL_TileRock, sizeof(*map.tiles)*map.width*map.height);
     ret = rl_mapgen_bsp_ex(map, bsp, &config);
     rl_bsp_destroy(bsp);
 
     return ret;
 }
 
-RL_Status rl_mapgen_bsp_ex(RL_Map *map, RL_BSP *root, const RL_MapgenConfigBSP *config)
+RL_Status rl_mapgen_bsp_ex(RL_Map map, RL_BSP *root, const RL_MapgenConfigBSP *config)
 {
     RL_Status ret;
 
-    RL_ASSERT(map);
-    RL_ASSERT(root);
+    RL_ASSERT(map.tiles != NULL);
+    RL_ASSERT(root != NULL);
     RL_ASSERT(root->width > 0 && root->height > 0);
     RL_ASSERT(root->x < root->width && root->y < root->height);
-    RL_ASSERT(config);
+    RL_ASSERT(config != NULL);
     RL_ASSERT(config->room_min_width > 0 && config->room_max_width >= config->room_min_width && config->room_min_height > 0 && config->room_max_height >= config->room_min_height);
-    RL_ASSERT(config->room_max_width <= map->width && config->room_max_height <= map->height);
+    RL_ASSERT(config->room_max_width <= map.width && config->room_max_height <= map.height);
     RL_ASSERT(config->max_splits > 0);
 
-    if (map == NULL || root == NULL || config == NULL) {
+    if (map.tiles == NULL || root == NULL || config == NULL) {
         return RL_ErrorNullParameter;
     }
 
@@ -1317,14 +1367,14 @@ RL_Status rl_mapgen_bsp_ex(RL_Map *map, RL_BSP *root, const RL_MapgenConfigBSP *
 }
 
 /* find the room tile within BSP */
-void rl_bsp_find_room(RL_Map *map, RL_BSP *leaf, unsigned int *dx, unsigned int *dy)
+void rl_bsp_find_room(RL_Map map, RL_BSP *leaf, unsigned int *dx, unsigned int *dy)
 {
     unsigned int x, y;
     unsigned int start_x, start_y, end_x, end_y;
     bool found_start = false;
     RL_ASSERT(dx && dy);
-    RL_ASSERT(map);
-    RL_ASSERT(leaf);
+    RL_ASSERT(map.tiles != NULL);
+    RL_ASSERT(leaf != NULL);
     for (x = leaf->x; x < leaf->width + leaf->x; ++x) {
         for (y = leaf->y; y < leaf->height + leaf->y; ++y) {
             if (!found_start) {
@@ -1352,12 +1402,12 @@ void rl_bsp_find_room(RL_Map *map, RL_BSP *leaf, unsigned int *dx, unsigned int 
     }
 }
 
-bool rl_mapgen_automata_is_alive(const RL_Map *map, int x, int y)
+bool rl_mapgen_automata_is_alive(const RL_Map map, int x, int y)
 {
     if (!rl_map_in_bounds(map, x, y)) return true;
     return rl_map_tile_is(map, x, y, RL_TileRock);
 }
-unsigned int rl_mapgen_automata_alive_neighbors(const RL_Map *map, int x, int y)
+unsigned int rl_mapgen_automata_alive_neighbors(const RL_Map map, int x, int y)
 {
     return rl_mapgen_automata_is_alive(map, x + 1, y) +
            rl_mapgen_automata_is_alive(map, x - 1, y) +
@@ -1369,26 +1419,49 @@ unsigned int rl_mapgen_automata_alive_neighbors(const RL_Map *map, int x, int y)
            rl_mapgen_automata_is_alive(map, x - 1, y - 1);
 }
 
-RL_Status rl_mapgen_automata(RL_Map *map, RL_MapgenConfigAutomata config)
+RL_Status rl_mapgen_automata(RL_Map map, RL_MapgenConfigAutomata config)
 {
-    return rl_mapgen_automata_ex(map, 0, 0, map->width, map->height, &config);
+    return rl_mapgen_automata_ex(map, 0, 0, map.width, map.height, &config);
 }
 
 #if RL_ENABLE_PATHFINDING
-static inline float rl_mapgen_corridor_scorer(const RL_GraphNode *current, const RL_GraphNode *neighbor, void *context);
+/* custom Dijkstra scorer function to prevent carving double wide doors when carving corridors */
+static inline float rl_mapgen_corridor_scorer(void *context, const RL_GraphNode *current, const RL_GraphNode *neighbor)
+{
+    RL_GraphContext *graph_context = (RL_GraphContext*) context;
+    RL_ASSERT(context != NULL);
+    if (context == NULL) return FLT_MAX;
+    RL_Map map = graph_context->map;
+    RL_Point start = current->point;
+    RL_Point end = neighbor->point;
+    float r = current->score + rl_distance_manhattan(start, end);
+
+    if (rl_map_tile_is(map, end.x, end.y, RL_TileDoor)) {
+        return r; /* doors are passable but count as "walls" - encourage passing through them */
+    }
+    if (rl_map_is_corner_wall(map, end.x, end.y)) {
+        return r + 99; /* discourage double wide corridors & double carving into walls */
+    }
+    if (RL_WALL_F(map, end.x, end.y)) {
+        return r + 9; /* discourage double wide corridors & double carving into walls */
+    }
+
+    return r;
+}
 #endif
-RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int offset_y, unsigned int width, unsigned int height,  const RL_MapgenConfigAutomata *config)
+
+RL_Status rl_mapgen_automata_ex(RL_Map map, unsigned int offset_x, unsigned int offset_y, unsigned int width, unsigned int height,  const RL_MapgenConfigAutomata *config)
 {
     unsigned int i, x, y;
 
-    RL_ASSERT(map && config);
+    RL_ASSERT(map.tiles != NULL && config != NULL);
     RL_ASSERT(width > 0 && height > 0);
     RL_ASSERT(offset_x < width && offset_y < height);
-    RL_ASSERT(offset_x < map->width && offset_y < map->height);
-    RL_ASSERT(offset_x + width <= map->width && offset_y + height <= map->height);
+    RL_ASSERT(offset_x < map.width && offset_y < map.height);
+    RL_ASSERT(offset_x + width <= map.width && offset_y + height <= map.height);
     RL_ASSERT(config->chance_cell_initialized > 0 && config->chance_cell_initialized <= 100);
 
-    if (map == NULL || config == NULL) {
+    if (map.tiles == NULL || config == NULL) {
         return RL_ErrorNullParameter;
     }
 
@@ -1397,9 +1470,9 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
         for (y=offset_y; y<offset_y + height; ++y) {
             unsigned int r = RL_RNG_F(1, 100);
             if (r <= config->chance_cell_initialized) {
-                map->tiles[x + y*map->width] = RL_TileRock;
+                map.tiles[x + y*map.width] = RL_TileRock;
             } else {
-                map->tiles[x + y*map->width] = RL_TileRoom;
+                map.tiles[x + y*map.width] = RL_TileRoom;
             }
         }
     }
@@ -1411,12 +1484,12 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
                 unsigned int alive_neighbors = rl_mapgen_automata_alive_neighbors(map, x, y);
                 if (!rl_mapgen_automata_is_alive(map, x, y) && alive_neighbors >= config->birth_threshold) {
                     /* cell isn't alive but has enough alive neighbors to be born */
-                    map->tiles[x + y*map->width] = RL_TileRock;
+                    map.tiles[x + y*map.width] = RL_TileRock;
                 } else if (rl_mapgen_automata_is_alive(map, x, y) && alive_neighbors >= config->survival_threshold) {
                     /* cell is alive and has enough alive neighbors to survive */
                 } else {
                     /* cell dies */
-                    map->tiles[x + y*map->width] = RL_TileRoom;
+                    map.tiles[x + y*map.width] = RL_TileRoom;
                 }
             }
         }
@@ -1429,105 +1502,81 @@ RL_Status rl_mapgen_automata_ex(RL_Map *map, unsigned int offset_x, unsigned int
          * connects it to another random region. This is pretty slow and can be optimized in the future, but works for
          * now. */
 
-        RL_Heap *heap = rl_heap_create(1, NULL);
+        /* TODO can remove reliance of heap here by just using 2 floodfill graph */
+        RL_Graph floodfill = rl_graph_create_from_map(map, NULL, NULL);
         /* fill floodfills array with a floodfill of each connected space */
+        bool is_scored = false;
         for (x=offset_x; x<offset_x + width; ++x) {
             for (y=offset_y; y<offset_y + height; ++y) {
-                int i;
-                bool is_scored = false;
                 if (RL_PASSABLE_F(map, x, y)) {
-                    for (i=0; i<heap->len; ++i) {
-                        RL_Graph *floodfill = (RL_Graph*) heap->heap[i];
-                        if (rl_graph_is_scored(floodfill, rl_point(x, y))) {
-                            is_scored = true;
-                            break;
-                        }
-                    }
-                    if (!is_scored) {
-                        RL_Graph *floodfill = rl_dijkstra_create(map, rl_point(x, y), NULL, NULL);
-                        rl_heap_insert(heap, floodfill);
-                    }
+                    rl_graph_score(floodfill, map, rl_point(x, y), NULL);
+                    is_scored = true;
                 }
+                if (is_scored) break;
             }
+            if (is_scored) break;
         }
         /* connect each floodfill with another random one */
-        if (heap->len > 1) {
-            int i;
-            RL_Graph *graph = rl_graph_create(map, rl_graph_neighbors_cardinal, NULL);
-            RL_ASSERT(graph);
-            for (i=0; i<heap->len; ++i) {
-                RL_Graph *floodfill_target;
-                RL_Graph *floodfill;
-                RL_Point dig_start, dig_end;
-                size_t node_idx;
-                int j = i;
-                floodfill = (RL_Graph*) heap->heap[i];
-                /* find a random target node to connect to */
-                while (j == i) {
-                    j = RL_RNG_F(0, heap->len - 1);
-                }
-                floodfill_target = (RL_Graph*) heap->heap[j];
-                RL_ASSERT(floodfill && floodfill_target);
-                /* find start & end point for corridor pathfinding */
-                for (node_idx=0; node_idx<floodfill->length; ++node_idx) {
-                    RL_GraphNode *n = &floodfill->nodes[node_idx];
-                    RL_ASSERT(n);
-                    if (n->score < FLT_MAX && RL_PASSABLE_F(map, n->point.x, n->point.y)) {
-                        dig_start = n->point;
-                        break;
-                    }
-                }
-                RL_ASSERT(RL_PASSABLE_F(map, dig_start.x, dig_start.y));
-                for (node_idx=0; node_idx<floodfill_target->length; ++node_idx) {
-                    RL_GraphNode *n = &floodfill_target->nodes[node_idx];
-                    RL_ASSERT(n);
-                    if (n->score < FLT_MAX && RL_PASSABLE_F(map, n->point.x, n->point.y)) {
-                        dig_end = n->point;
-                        break;
-                    }
-                }
-                RL_ASSERT(RL_PASSABLE_F(map, dig_end.x, dig_end.y));
-                RL_ASSERT(!(dig_start.x == dig_end.x && dig_start.y == dig_end.y));
-                /* carve out corridors */
-                rl_dijkstra_score_ex(graph, dig_end, rl_mapgen_corridor_scorer, map);
-                RL_Path *path = rl_path_create_from_graph(graph, dig_start);
-                RL_ASSERT(path);
-                while ((path = rl_path_walk(path))) {
-                    if (rl_map_tile_is(map, path->point.x, path->point.y, RL_TileRock)) {
-                        map->tiles[(size_t)floor(path->point.x) + (size_t)floor(path->point.y) * map->width] = RL_TileCorridor;
+        if (is_scored) {
+            for (x=offset_x; x<offset_x + width; ++x) {
+                for (y=offset_y; y<offset_y + height; ++y) {
+                    if (RL_PASSABLE_F(map, x, y) && !rl_graph_is_scored(floodfill, rl_point(x, y))) {
+                        /* found a node to connect to floodfill */
+                        RL_Point dig_start, dig_end;
+
+                        /* find start & end point for corridor pathfinding */
+                        /* TODO could make this smarter by finding closest tile to point */
+                        for (size_t node_idx=0; node_idx<floodfill.length; ++node_idx) {
+                            RL_GraphNode *n = &floodfill.nodes[node_idx];
+                            RL_ASSERT(n);
+                            if (n->score < FLT_MAX && RL_PASSABLE_F(map, n->point.x, n->point.y)) {
+                                dig_start = n->point;
+                                break;
+                            }
+                        }
+                        RL_ASSERT(RL_PASSABLE_F(map, dig_start.x, dig_start.y));
+                        dig_end = rl_point(x, y);
+                        floodfill.neighbors = rl_graph_neighbors_cardinal;
+                        rl_graph_reset(floodfill);
+                        rl_graph_score(floodfill, map, dig_end, rl_mapgen_corridor_scorer);
+                        RL_Path *path = rl_path_create_from_graph(floodfill, map, dig_start);
+                        RL_ASSERT(path != NULL && path->next != NULL);
+                        while ((path = rl_path_walk(path))) {
+                            if (rl_map_tile_is(map, path->point.x, path->point.y, RL_TileRock)) {
+                                map.tiles[(size_t)floor(path->point.x) + (size_t)floor(path->point.y) * map.width] = RL_TileCorridor;
+                            }
+                        }
+
+                        /* update floodfill graph */
+                        floodfill.neighbors = NULL;
+                        rl_graph_score(floodfill, map, dig_start, NULL);
                     }
                 }
             }
-            rl_graph_destroy(graph);
         }
-        /* cleanup */
-        RL_Graph *floodfill = NULL;
-        while ((floodfill = (RL_Graph*) rl_heap_pop(heap))) {
-            rl_graph_destroy(floodfill);
-        }
-        rl_heap_destroy(heap);
+        rl_graph_destroy(floodfill);
 #else
         return RL_ErrorMapgenInvalidConfig;
 #endif
     }
     if (config->fill_border) {
         x = 0;
-        for (y=offset_y; y<height; ++y) map->tiles[x + y*map->width] = RL_TileRock;
+        for (y=offset_y; y<height; ++y) map.tiles[x + y*map.width] = RL_TileRock;
         x = width - 1;
-        for (y=offset_y; y<height; ++y) map->tiles[x + y*map->width] = RL_TileRock;
+        for (y=offset_y; y<height; ++y) map.tiles[x + y*map.width] = RL_TileRock;
         y = 0;
-        for (x=offset_x; x<width; ++x) map->tiles[x + y*map->width] = RL_TileRock;
+        for (x=offset_x; x<width; ++x) map.tiles[x + y*map.width] = RL_TileRock;
         y = height - 1;
-        for (x=offset_x; x<width; ++x) map->tiles[x + y*map->width] = RL_TileRock;
+        for (x=offset_x; x<width; ++x) map.tiles[x + y*map.width] = RL_TileRock;
     }
     if (config->cull_unconnected) {
 #if RL_ENABLE_PATHFINDING
-        RL_Graph *floodfill = rl_graph_floodfill_largest_area(map);
-        if (floodfill) {
+        RL_Graph floodfill = rl_graph_floodfill_largest_area(map);
+        if (floodfill.nodes != NULL) {
             for (x=offset_x; x<offset_x + width; ++x) {
                 for (y=offset_y; y<offset_y + height; ++y) {
                     if (!rl_graph_is_scored(floodfill, rl_point(x, y))) {
-                        map->tiles[x + y*map->width] = RL_TileRock;
+                        map.tiles[x + y*map.width] = RL_TileRock;
                     }
                 }
             }
@@ -1545,7 +1594,7 @@ typedef struct {
     int x, y;
 } RL_MapPoint;
 
-int rl_mapgen_maze_unvisited_neighbors(RL_MapPoint ps[4], const RL_Map *map, int x, int y, int sx, int mx, int sy, int my)
+int rl_mapgen_maze_unvisited_neighbors(RL_MapPoint ps[4], const RL_Map map, int x, int y, int sx, int mx, int sy, int my)
 {
     RL_MapPoint neighbors[4];
     int i, count = 0;
@@ -1561,7 +1610,7 @@ int rl_mapgen_maze_unvisited_neighbors(RL_MapPoint ps[4], const RL_Map *map, int
         int x = neighbors[i].x;
         int y = neighbors[i].y;
         if (x < sx || x >= mx || y < sy || y >= my) continue;
-        if (map->tiles[x + y*map->width] == RL_TileRock) {
+        if (map.tiles[x + y*map.width] == RL_TileRock) {
             /* matching neighbor */
             ps[count].x = x;
             ps[count].y = y;
@@ -1572,44 +1621,44 @@ int rl_mapgen_maze_unvisited_neighbors(RL_MapPoint ps[4], const RL_Map *map, int
     return count;
 }
 
-RL_Status rl_mapgen_maze(RL_Map *map)
+RL_Status rl_mapgen_maze(RL_Map map)
 {
-    RL_ASSERT(map);
-    if (map == NULL) return RL_ErrorNullParameter;
-    RL_ASSERT(map->width > 2 && map->height > 2);
-    memset(map->tiles, RL_TileRock, sizeof(*map->tiles) * map->width * map->height);
-    return rl_mapgen_maze_ex(map, 1, 1, map->width - 2, map->height - 2);
+    RL_ASSERT(map.tiles != NULL);
+    if (map.tiles == NULL) return RL_ErrorNullParameter;
+    RL_ASSERT(map.width > 2 && map.height > 2);
+    memset(map.tiles, RL_TileRock, sizeof(*map.tiles) * map.width * map.height);
+    return rl_mapgen_maze_ex(map, 1, 1, map.width - 2, map.height - 2);
 }
 
-RL_Status rl_mapgen_maze_ex(RL_Map *map, unsigned int offset_x, unsigned int offset_y, unsigned int width, unsigned int height)
+RL_Status rl_mapgen_maze_ex(RL_Map map, unsigned int offset_x, unsigned int offset_y, unsigned int width, unsigned int height)
 {
     int x, y;
     RL_MapPoint *ps;
     RL_MapPoint *p;
     RL_Heap *heap;
 
-    RL_ASSERT(map);
+    RL_ASSERT(map.tiles != NULL);
     RL_ASSERT(width > 0 && height > 0);
     RL_ASSERT(offset_x < width && offset_y < height);
-    RL_ASSERT(offset_x < map->width && offset_y < map->height);
-    RL_ASSERT(offset_x + width <= map->width && offset_y + height <= map->height);
+    RL_ASSERT(offset_x < map.width && offset_y < map.height);
+    RL_ASSERT(offset_x + width <= map.width && offset_y + height <= map.height);
     RL_ASSERT(offset_x + width < INT_MAX);
     RL_ASSERT(offset_y + height < INT_MAX);
 
-    if (map == NULL) {
+    if (map.tiles == NULL) {
         return RL_ErrorNullParameter;
     }
 
     /* reset all tiles within range to rock */
     for (x = (int)offset_x; x < (int)offset_x + (int)width; ++x) {
         for (y = (int)offset_y; y < (int)offset_y + (int)height; ++y) {
-            map->tiles[x + y*map->width] = RL_TileRock;
+            map.tiles[x + y*map.width] = RL_TileRock;
         }
     }
 
     /* allocate memory for BFS */
     heap = rl_heap_create(width * height, NULL);
-    ps = (RL_MapPoint*) RL_MALLOC(sizeof(*ps) * map->width * map->height);
+    ps = (RL_MapPoint*) RL_MALLOC(sizeof(*ps) * map.width * map.height);
 
     RL_ASSERT(ps && heap);
     if (ps == NULL || heap == NULL) {
@@ -1620,8 +1669,8 @@ RL_Status rl_mapgen_maze_ex(RL_Map *map, unsigned int offset_x, unsigned int off
     /* TODO use connect_corridors function to do this so we can connect different parts of e.g. automata & bsp */
     x = RL_RNG_F(offset_x, offset_x + width - 1);
     y = RL_RNG_F(offset_y, offset_y + height - 1);
-    map->tiles[x + y*map->width] = RL_TileCorridor;
-    p = &ps[x + y*map->width];
+    map.tiles[x + y*map.width] = RL_TileCorridor;
+    p = &ps[x + y*map.width];
     p->x = x;
     p->y = y;
     rl_heap_insert(heap, p);
@@ -1637,7 +1686,7 @@ RL_Status rl_mapgen_maze_ex(RL_Map *map, unsigned int offset_x, unsigned int off
         x = neighbors[i].x;
         y = neighbors[i].y;
         RL_ASSERT(rl_map_in_bounds(map, x, y));
-        RL_ASSERT(map->tiles[x + y*map->width] == RL_TileRock);
+        RL_ASSERT(map.tiles[x + y*map.width] == RL_TileRock);
         /* unvisited neighbor - remove wall and push to heap */
         wall_x = x;
         wall_y = y;
@@ -1645,9 +1694,9 @@ RL_Status rl_mapgen_maze_ex(RL_Map *map, unsigned int offset_x, unsigned int off
         if (x > p->x) wall_x = x - 1;
         if (y < p->y) wall_y = y + 1;
         if (y > p->y) wall_y = y - 1;
-        map->tiles[wall_x + wall_y*map->width] = RL_TileCorridor;
-        map->tiles[x + y*map->width] = RL_TileCorridor;
-        p2 = &ps[x + y*map->width];
+        map.tiles[wall_x + wall_y*map.width] = RL_TileCorridor;
+        map.tiles[x + y*map.width] = RL_TileCorridor;
+        p2 = &ps[x + y*map.width];
         p2->x = x;
         p2->y = y;
         rl_heap_insert(heap, p);
@@ -1662,15 +1711,15 @@ RL_Status rl_mapgen_maze_ex(RL_Map *map, unsigned int offset_x, unsigned int off
 }
 
 /* custom corridor connection to most efficiently connect leaves of the BSP tree */
-void rl_mapgen_connect_corridors_simple(RL_Map *map, RL_BSP *root, bool draw_doors)
+void rl_mapgen_connect_corridors_simple(RL_Map map, RL_BSP *root, bool draw_doors)
 {
     /* unsigned int dig_start_x, dig_start_y, dig_end_x, dig_end_y, cur_x, cur_y; */
     unsigned int dig_start_x, dig_start_y, dig_end_x, dig_end_y, cur_x, cur_y;
     int direction, diff_y, diff_x;
     RL_BSP *node, *sibling, *left, *right;
 
-    RL_ASSERT(map && root);
-    if (!map || !root) return;
+    RL_ASSERT(map.tiles != NULL && root != NULL);
+    if (map.tiles == NULL || root == NULL) return;
 
     /* connect siblings */
     node = root->left;
@@ -1726,11 +1775,11 @@ void rl_mapgen_connect_corridors_simple(RL_Map *map, RL_BSP *root, bool draw_doo
             }
         }
         /* dig */
-        if (map->tiles[cur_x + cur_y*map->width] == RL_TileRock) {
+        if (map.tiles[cur_x + cur_y*map.width] == RL_TileRock) {
             if (draw_doors && rl_map_is_room_wall(map, cur_x, cur_y))
-                map->tiles[cur_x + cur_y*map->width] = RL_TileDoor;
+                map.tiles[cur_x + cur_y*map.width] = RL_TileDoor;
             else
-                map->tiles[cur_x + cur_y*map->width] = RL_TileCorridor;
+                map.tiles[cur_x + cur_y*map.width] = RL_TileCorridor;
         }
         cur_x = next_x;
         cur_y = next_y;
@@ -1742,9 +1791,9 @@ void rl_mapgen_connect_corridors_simple(RL_Map *map, RL_BSP *root, bool draw_doo
 }
 
 
-void rl_mapgen_connect_corridors_bsp(RL_Map *map, RL_BSP *root, bool draw_doors);
-void rl_mapgen_connect_corridors_randomly(RL_Map *map, RL_BSP *root, bool draw_doors);
-RL_Status rl_mapgen_connect_corridors(RL_Map *map, RL_BSP *root, bool draw_doors, RL_MapgenCorridorConnection connection_algorithm)
+void rl_mapgen_connect_corridors_bsp(RL_Map map, RL_BSP *root, bool draw_doors);
+void rl_mapgen_connect_corridors_randomly(RL_Map map, RL_BSP *root, bool draw_doors);
+RL_Status rl_mapgen_connect_corridors(RL_Map map, RL_BSP *root, bool draw_doors, RL_MapgenCorridorConnection connection_algorithm)
 {
     switch (connection_algorithm) {
         case RL_ConnectNone:
@@ -1760,14 +1809,13 @@ RL_Status rl_mapgen_connect_corridors(RL_Map *map, RL_BSP *root, bool draw_doors
             rl_mapgen_connect_corridors_randomly(map, root, draw_doors);
             {
                 /* cull non-connected tiles */
-                RL_Graph *floodfill = rl_graph_floodfill_largest_area(map);
-                RL_ASSERT(floodfill);
-                if (floodfill) {
-                    for (size_t x=0; x < map->width; ++x) {
-                        for (size_t y=0; y < map->height; ++y) {
-                            if (floodfill->nodes[x + y*map->width].score == FLT_MAX) {
+                RL_Graph floodfill = rl_graph_floodfill_largest_area(map);
+                if (floodfill.nodes != NULL) {
+                    for (size_t x=0; x < map.width; ++x) {
+                        for (size_t y=0; y < map.height; ++y) {
+                            if (floodfill.nodes[x + y*map.width].score == FLT_MAX) {
                                 /* set unreachable tiles to rock */
-                                map->tiles[x + y*map->width] = RL_TileRock;
+                                map.tiles[x + y*map.width] = RL_TileRock;
                             }
                         }
                     }
@@ -1940,14 +1988,6 @@ static float rl_distance_simple(RL_Point node, RL_Point end)
     return 1.4;
 }
 
-static int rl_scored_graph_heap_comparison(const void *heap_item_a, const void *heap_item_b)
-{
-    RL_GraphNode *node_a = (RL_GraphNode*) heap_item_a;
-    RL_GraphNode *node_b = (RL_GraphNode*) heap_item_b;
-
-    return node_a->score < node_b->score;
-}
-
 RL_Path *rl_path(RL_Point p)
 {
     RL_Path *path = (RL_Path*) RL_MALLOC(sizeof(*path));
@@ -1980,31 +2020,39 @@ float rl_distance_chebyshev(RL_Point node, RL_Point end)
     return distance_x > distance_y ? distance_x : distance_y;
 }
 
-/* custom Dijkstra scorer function to prevent carving double wide doors when carving corridors */
-static inline float rl_mapgen_corridor_scorer(const RL_GraphNode *current, const RL_GraphNode *neighbor, void *context)
+float rl_graph_score_manhattan(void *context, const RL_GraphNode *current, const RL_GraphNode *neighbor)
 {
-    RL_Map *map = (RL_Map*) context;
-    RL_Point start = current->point;
-    RL_Point end = neighbor->point;
-    float r = current->score + rl_distance_manhattan(start, end);
+    RL_UNUSED(context);
 
-    if (rl_map_tile_is(map, end.x, end.y, RL_TileDoor)) {
-        return r; /* doors are passable but count as "walls" - encourage passing through them */
-    }
-    if (rl_map_is_corner_wall(map, end.x, end.y)) {
-        return r + 99; /* discourage double wide corridors & double carving into walls */
-    }
-    if (RL_WALL_F(map, end.x, end.y)) {
-        return r + 9; /* discourage double wide corridors & double carving into walls */
-    }
-
-    return r;
+    return current->score + rl_distance_manhattan(current->point, neighbor->point);
 }
 
-void rl_mapgen_connect_corridors_bsp_recursive(RL_Map *map, RL_BSP *root, bool draw_doors, RL_Graph *graph)
+float rl_graph_score_euclidian(void *context, const RL_GraphNode *current, const RL_GraphNode *neighbor)
 {
-    RL_ASSERT(map && root && graph);
-    if (map == NULL || root == NULL || graph == NULL) return;
+    RL_UNUSED(context);
+
+    return current->score + rl_distance_euclidian(current->point, neighbor->point);
+}
+
+float rl_graph_score_chebyshev(void *context, const RL_GraphNode *current, const RL_GraphNode *neighbor)
+{
+    RL_UNUSED(context);
+
+    return current->score + rl_distance_chebyshev(current->point, neighbor->point);
+}
+
+float rl_graph_score_simple(void *context, const RL_GraphNode *current, const RL_GraphNode *neighbor)
+{
+    RL_UNUSED(context);
+
+    return current->score + rl_distance_simple(current->point, neighbor->point);
+}
+
+
+void rl_mapgen_connect_corridors_bsp_recursive(RL_Map map, RL_BSP *root, bool draw_doors, RL_Graph graph)
+{
+    RL_ASSERT(map.tiles != NULL && root != NULL && graph.nodes != NULL);
+    if (map.tiles == NULL || root == NULL || graph.nodes == NULL) return;
 
     /* connect siblings */
     RL_BSP *node = root->left;
@@ -2024,15 +2072,15 @@ void rl_mapgen_connect_corridors_bsp_recursive(RL_Map *map, RL_BSP *root, bool d
     RL_ASSERT(!(dig_start.x == dig_end.x && dig_start.y == dig_end.y));
 
     /* carve out corridors */
-    rl_dijkstra_score_ex(graph, dig_end, rl_mapgen_corridor_scorer, map);
-    RL_Path *path = rl_path_create_from_graph(graph, dig_start);
+    rl_graph_score(graph, map, dig_end, NULL);
+    RL_Path *path = rl_path_create_from_graph(graph, map, dig_start);
     RL_ASSERT(path);
     while ((path = rl_path_walk(path))) {
         if (rl_map_tile_is(map, path->point.x, path->point.y, RL_TileRock)) {
             if (rl_map_is_room_wall(map, path->point.x, path->point.y) && draw_doors) {
-                map->tiles[(size_t)floor(path->point.x) + (size_t)floor(path->point.y) * map->width] = RL_TileDoor;
+                map.tiles[(size_t)floor(path->point.x) + (size_t)floor(path->point.y) * map.width] = RL_TileDoor;
             } else {
-                map->tiles[(size_t)floor(path->point.x) + (size_t)floor(path->point.y) * map->width] = RL_TileCorridor;
+                map.tiles[(size_t)floor(path->point.x) + (size_t)floor(path->point.y) * map.width] = RL_TileCorridor;
             }
         }
     }
@@ -2041,20 +2089,20 @@ void rl_mapgen_connect_corridors_bsp_recursive(RL_Map *map, RL_BSP *root, bool d
     rl_mapgen_connect_corridors_bsp_recursive(map, node, draw_doors, graph);
     rl_mapgen_connect_corridors_bsp_recursive(map, sibling, draw_doors, graph);
 }
-void rl_mapgen_connect_corridors_bsp(RL_Map *map, RL_BSP *root, bool draw_doors)
+void rl_mapgen_connect_corridors_bsp(RL_Map map, RL_BSP *root, bool draw_doors)
 {
-    RL_Graph *graph = rl_graph_create(map, rl_graph_neighbors_cardinal, NULL);
-    RL_ASSERT(graph);
-    if (graph) {
+    RL_Graph graph = rl_graph_create(map.width, map.height, rl_graph_neighbors_cardinal, NULL);
+    RL_ASSERT(graph.nodes != NULL);
+    if (graph.nodes != NULL) {
         rl_mapgen_connect_corridors_bsp_recursive(map, root, draw_doors, graph);
         rl_graph_destroy(graph);
     }
 }
 
-void rl_mapgen_connect_corridors_randomly(RL_Map *map, RL_BSP *root, bool draw_doors)
+void rl_mapgen_connect_corridors_randomly(RL_Map map, RL_BSP *root, bool draw_doors)
 {
-    RL_ASSERT(map && root);
-    if (!map || !root) return;
+    RL_ASSERT(map.tiles != NULL && root != NULL);
+    if (map.tiles == NULL || root == NULL) return;
 
     /* find deepest left-most node */
     RL_BSP *leftmost_node = root;
@@ -2063,9 +2111,9 @@ void rl_mapgen_connect_corridors_randomly(RL_Map *map, RL_BSP *root, bool draw_d
     }
     RL_ASSERT(leftmost_node && rl_bsp_is_leaf(leftmost_node));
     RL_BSP *node = leftmost_node;
-    RL_Graph *graph = rl_graph_create(map, rl_graph_neighbors_cardinal, NULL);
-    RL_ASSERT(graph);
-    if (graph == NULL) return;
+    RL_Graph graph = rl_graph_create(map.width, map.height, rl_graph_neighbors_cardinal, NULL);
+    RL_ASSERT(graph.nodes != NULL);
+    if (graph.nodes == NULL) return;
     while (node) {
         RL_BSP *sibling;
 
@@ -2086,15 +2134,15 @@ void rl_mapgen_connect_corridors_randomly(RL_Map *map, RL_BSP *root, bool draw_d
         RL_ASSERT(!(dig_start.x == dig_end.x && dig_start.y == dig_end.y));
 
         /* carve out corridors */
-        rl_dijkstra_score_ex(graph, dig_end, rl_mapgen_corridor_scorer, map);
-        RL_Path *path = rl_path_create_from_graph(graph, dig_start);
+        rl_graph_score(graph, map, dig_end, rl_mapgen_corridor_scorer);
+        RL_Path *path = rl_path_create_from_graph(graph, map, dig_start);
         RL_ASSERT(path);
         while ((path = rl_path_walk(path))) {
             if (rl_map_tile_is(map, path->point.x, path->point.y, RL_TileRock)) {
                 if (rl_map_is_room_wall(map, path->point.x, path->point.y) && draw_doors) {
-                    map->tiles[(size_t)floor(path->point.x) + (size_t)floor(path->point.y) * map->width] = RL_TileDoor;
+                    map.tiles[(size_t)floor(path->point.x) + (size_t)floor(path->point.y) * map.width] = RL_TileDoor;
                 } else {
-                    map->tiles[(size_t)floor(path->point.x) + (size_t)floor(path->point.y) * map->width] = RL_TileCorridor;
+                    map.tiles[(size_t)floor(path->point.x) + (size_t)floor(path->point.y) * map.width] = RL_TileCorridor;
                 }
             }
         }
@@ -2107,37 +2155,35 @@ void rl_mapgen_connect_corridors_randomly(RL_Map *map, RL_BSP *root, bool draw_d
 }
 
 
-RL_Graph *rl_graph_floodfill_largest_area(const RL_Map *map)
+RL_Graph rl_graph_floodfill_largest_area(const RL_Map map)
 {
-    RL_ASSERT(map);
-    if (map == NULL) return NULL;
-    int *visited = (int*) RL_CALLOC(map->width * map->height, sizeof(*visited));
+    RL_Graph floodfill = {0};
+    RL_ASSERT(map.tiles);
+    if (map.tiles == NULL) return floodfill;
+    int *visited = (int*) RL_CALLOC(map.width * map.height, sizeof(*visited));
     RL_ASSERT(visited);
-    if (visited == NULL) return NULL;
-    RL_Graph *floodfill = NULL; /* largest floodfill */
+    if (visited == NULL) return floodfill;
     int floodfill_scored = 0;
-    for (unsigned int x = 0; x < map->width; ++x) {
-        for (unsigned int y = 0; y < map->height; ++y) {
-            if (RL_PASSABLE_F(map, x, y) && !visited[x + y*map->width]) {
-                RL_Graph *test = rl_dijkstra_create(map, rl_point(x, y), NULL, NULL);
-                RL_ASSERT(test);
-                if (test == NULL) {
+    for (unsigned int x = 0; x < map.width; ++x) {
+        for (unsigned int y = 0; y < map.height; ++y) {
+            if (RL_PASSABLE_F(map, x, y) && !visited[x + y*map.width]) {
+                RL_Graph test = rl_graph_create_scored(map, rl_point(x, y), NULL, NULL, NULL);
+                RL_ASSERT(test.nodes != NULL);
+                if (test.nodes == NULL) {
                     RL_FREE(visited);
-                    if (floodfill) {
-                        rl_graph_destroy(floodfill);
-                    }
-                    return NULL;
+                    // memory error
+                    return floodfill;
                 }
                 int test_scored = 0;
-                for (size_t i = 0; i < test->length; i++) {
-                    if (test->nodes[i].score != FLT_MAX) {
+                for (size_t i = 0; i < test.length; i++) {
+                    if (test.nodes[i].score != FLT_MAX) {
                         visited[i] = 1;
                         test_scored ++;
                     }
                 }
                 if (test_scored > floodfill_scored) {
                     floodfill_scored = test_scored;
-                    if (floodfill) {
+                    if (floodfill.nodes != NULL) {
                         rl_graph_destroy(floodfill);
                     }
                     floodfill = test;
@@ -2166,23 +2212,23 @@ RL_Point rl_point_axial(unsigned int x, unsigned int y)
     int x_ = x;
     int y_ = y;
 #if RL_HEX_FLAT_TOP == 1
-        int val = x_ & 1;
-    #if RL_HEX_ODD_OFFSET == 1
-        int shift = (x_ - val) / 2;
-    #else
-        int shift = (x_ + val) / 2;
-    #endif
-        point.x = x_;
-        point.y = y_ - shift;
+    int val = x_ & 1;
+#if RL_HEX_ODD_OFFSET == 1
+    int shift = (x_ - val) / 2;
+#else
+    int shift = (x_ + val) / 2;
+#endif
+    point.x = x_;
+    point.y = y_ - shift;
 #else // RL_HEX_FLAT_TOP
-        int val = y_ & 1;
-    #if RL_HEX_ODD_OFFSET == 1
-        int shift = (y_ - val) / 2;
-    #else
-        int shift = (y_ + val) / 2;
-    #endif
-        point.x = x_ - shift;
-        point.y = y_;
+    int val = y_ & 1;
+#if RL_HEX_ODD_OFFSET == 1
+    int shift = (y_ - val) / 2;
+#else
+    int shift = (y_ + val) / 2;
+#endif
+    point.x = x_ - shift;
+    point.y = y_;
 #endif // RL_HEX_FLAT_TOP
 
     return point;
@@ -2194,21 +2240,21 @@ RL_Point rl_axial_to_offset(RL_Point axial)
 
 #if RL_HEX_FLAT_TOP == 1
     // Flat-topped hex layouts (columns are shifted)
-    #if RL_HEX_ODD_OFFSET == 1
-        offset.x = axial.x;
-        offset.y = axial.y + (axial.x - ((int)axial.x & 1)) / 2;
-    #else
-        offset.x = axial.x;
-        offset.y = axial.y + (axial.x + ((int)axial.x & 1)) / 2;
-    #endif
+#if RL_HEX_ODD_OFFSET == 1
+    offset.x = axial.x;
+    offset.y = axial.y + (axial.x - ((int)axial.x & 1)) / 2;
+#else
+    offset.x = axial.x;
+    offset.y = axial.y + (axial.x + ((int)axial.x & 1)) / 2;
+#endif
 #else // RL_HEX_FLAT_TOP
-    #if RL_HEX_ODD_OFFSET == 1
-        offset.x = axial.x + (axial.y - ((int)axial.y & 1)) / 2;
-        offset.y = axial.y;
-    #else
-        offset.x = axial.x + (axial.y + ((int)axial.y & 1)) / 2;
-        offset.y = axial.y;
-    #endif
+#if RL_HEX_ODD_OFFSET == 1
+    offset.x = axial.x + (axial.y - ((int)axial.y & 1)) / 2;
+    offset.y = axial.y;
+#else
+    offset.x = axial.x + (axial.y + ((int)axial.y & 1)) / 2;
+    offset.y = axial.y;
+#endif
 #endif // RL_HEX_FLAT_TOP
 
     return offset;
@@ -2265,36 +2311,36 @@ RL_Path *rl_line_create(RL_Point a, RL_Point b, float step)
     return head;
 }
 
-RL_Path *rl_path_create(const RL_Map *map, RL_Point start, RL_Point end, RL_DistanceFun distance_f, RL_NeighborsFun neighbors_f)
+RL_Path *rl_path_create(const RL_Map map, RL_Point start, RL_Point end, RL_ScoreFun score_f, RL_NeighborsFun neighbors_f)
 {
-    RL_Graph *graph = rl_dijkstra_create(map, end, distance_f, neighbors_f);
-    RL_ASSERT(graph);
-    if (graph == NULL) return NULL;
-    RL_Path *path = rl_path_create_from_graph(graph, start);
+    RL_Graph graph = rl_graph_create_scored(map, end, score_f, neighbors_f, NULL);
+    RL_ASSERT(graph.nodes);
+    if (graph.nodes == NULL) return NULL;
+    RL_Path *path = rl_path_create_from_graph(graph, map, start);
     RL_ASSERT(path);
     rl_graph_destroy(graph);
 
     return path;
 }
 
-RL_Path *rl_path_create_from_graph(const RL_Graph *graph, RL_Point start)
+RL_Path *rl_path_create_from_graph(const RL_Graph graph, const RL_Map map, RL_Point start)
 {
     RL_Path *path = rl_path(start);
     RL_Path *path_start = path;
     RL_GraphNode *node = NULL;
-    RL_ASSERT(path);
-    RL_ASSERT(graph && graph->nodes);
-    if (path == NULL || graph == NULL || graph->nodes == NULL) return NULL;
-    for (size_t i=0; i<graph->length; i++) {
-        if (graph->nodes[i].point.x == start.x && graph->nodes[i].point.y == start.y) {
-            node = &graph->nodes[i];
+    RL_ASSERT(path != NULL);
+    RL_ASSERT(graph.nodes != NULL);
+    if (path == NULL || graph.nodes == NULL) return NULL;
+    for (size_t i=0; i<graph.length; i++) {
+        if (graph.nodes[i].point.x == start.x && graph.nodes[i].point.y == start.y) {
+            node = &graph.nodes[i];
         }
     }
     if (node == NULL) {
         return path;
     }
     while (node != NULL && node->score > 0) {
-        node = rl_graph_node_lowest_neighbor(graph, node);
+        node = rl_graph_node_lowest_neighbor(graph, map, node);
         if (node == NULL) break;
         path->next = rl_path(node->point);
         RL_ASSERT(path->next);
@@ -2325,18 +2371,14 @@ void rl_path_destroy(RL_Path *path)
     }
 }
 
-size_t rl_neighbors_default_fn(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors, bool allow_diagonal_neighbors, bool only_passable_neighbors)
+size_t rl_neighbors_default_fn(const RL_Graph graph, const RL_Map map, RL_Point point, RL_GraphNode **neighbors, bool allow_diagonal_neighbors, bool only_passable_neighbors)
 {
-    RL_ASSERT(graph != NULL);
-    if (graph == NULL) return 0;
-    RL_Map *map = (RL_Map*) graph->context;
-    RL_ASSERT(map != NULL);
-    if (map == NULL) return 0;
+    RL_ASSERT(graph.nodes != NULL);
+    if (graph.nodes == NULL) return 0;
+    RL_ASSERT(map.tiles != NULL);
+    if (map.tiles == NULL) return 0;
     RL_ASSERT(neighbors != NULL);
     if (neighbors == NULL) return 0;
-    RL_GraphNode *nodes = graph->nodes;
-    RL_ASSERT(nodes != NULL);
-    if (nodes == NULL) return 0;
 
     size_t neighbors_count = 0;
     RL_Point neighbor_coords[8];
@@ -2364,52 +2406,56 @@ size_t rl_neighbors_default_fn(const RL_Graph *graph, RL_Point point, RL_GraphNo
         if (only_passable_neighbors && !RL_PASSABLE_F(map, neighbor_coords[i].x, neighbor_coords[i].y))
             continue;
 
-        size_t idx = neighbor_coords[i].x + neighbor_coords[i].y*map->width;
-        neighbors[neighbors_count++] = &graph->nodes[idx];
+        size_t idx = neighbor_coords[i].x + neighbor_coords[i].y*map.width;
+        neighbors[neighbors_count++] = &graph.nodes[idx];
     }
 
     return neighbors_count;
 }
 
-size_t rl_graph_neighbors_ordinal_passable(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors)
+size_t rl_graph_neighbors_ordinal_passable(void *context, RL_Point point, RL_GraphNode **neighbors)
 {
+    RL_GraphContext *graph_context = (RL_GraphContext*) context;
     RL_ASSERT(RL_MAX_NEIGHBOR_COUNT >= 8 && "Default rl_graph_neighbors_ordinal_passable includes max 8 (diagonal) neighbors");
-    return rl_neighbors_default_fn(graph, point, neighbors, true, true);
+    RL_ASSERT(graph_context != NULL);
+    return rl_neighbors_default_fn(graph_context->graph, graph_context->map, point, neighbors, true, true);
 }
 
-size_t rl_graph_neighbors_cardinal_passable(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors)
+size_t rl_graph_neighbors_cardinal_passable(void *context, RL_Point point, RL_GraphNode **neighbors)
 {
+    RL_GraphContext *graph_context = (RL_GraphContext*) context;
     RL_ASSERT(RL_MAX_NEIGHBOR_COUNT >= 4 && "Default rl_graph_neighbors_cardinal_passable includes max 4 neighbors");
-    return rl_neighbors_default_fn(graph, point, neighbors, false, true);
+    RL_ASSERT(graph_context != NULL);
+    return rl_neighbors_default_fn(graph_context->graph, graph_context->map, point, neighbors, false, true);
 }
 
-size_t rl_graph_neighbors_ordinal(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors)
+size_t rl_graph_neighbors_ordinal(void *context, RL_Point point, RL_GraphNode **neighbors)
 {
+    RL_GraphContext *graph_context = (RL_GraphContext*) context;
     RL_ASSERT(RL_MAX_NEIGHBOR_COUNT >= 8 && "Default rl_graph_neighbors_ordinal includes max 8 (diagonal) neighbors");
-    return rl_neighbors_default_fn(graph, point, neighbors, true, false);
+    RL_ASSERT(graph_context != NULL);
+    return rl_neighbors_default_fn(graph_context->graph, graph_context->map, point, neighbors, true, false);
 }
 
-size_t rl_graph_neighbors_cardinal(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors)
+size_t rl_graph_neighbors_cardinal(void *context, RL_Point point, RL_GraphNode **neighbors)
 {
+    RL_GraphContext *graph_context = (RL_GraphContext*) context;
     RL_ASSERT(RL_MAX_NEIGHBOR_COUNT >= 4 && "Default rl_graph_neighbors_cardinal includes max 4 neighbors");
-    return rl_neighbors_default_fn(graph, point, neighbors, false, false);
+    RL_ASSERT(graph_context != NULL);
+    return rl_neighbors_default_fn(graph_context->graph, graph_context->map, point, neighbors, false, false);
 }
 
 /**
  * Following code is for hex grid conversion to axial coordinates & neighbors
  */
-size_t rl_graph_neighbors_axial_default(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors, bool only_passable_neighbors)
+size_t rl_graph_neighbors_axial_default(const RL_Graph graph, const RL_Map map, RL_Point point, RL_GraphNode **neighbors, bool only_passable_neighbors)
 {
-    RL_ASSERT(graph != NULL);
-    if (graph == NULL) return 0;
-    RL_Map *map = (RL_Map*) graph->context;
-    RL_ASSERT(map != NULL);
-    if (map == NULL) return 0;
+    RL_ASSERT(graph.nodes != NULL);
+    if (graph.nodes == NULL) return 0;
+    RL_ASSERT(map.tiles != NULL);
+    if (map.tiles == NULL) return 0;
     RL_ASSERT(neighbors != NULL);
     if (neighbors == NULL) return 0;
-    RL_GraphNode *nodes = graph->nodes;
-    RL_ASSERT(nodes != NULL);
-    if (nodes == NULL) return 0;
 
     size_t neighbors_count = 0;
     RL_Point neighbor_coords[6];
@@ -2433,125 +2479,153 @@ size_t rl_graph_neighbors_axial_default(const RL_Graph *graph, RL_Point point, R
             continue;
         if (only_passable_neighbors && !RL_PASSABLE_F(map, offset_x, offset_y))
             continue;
-        idx = neighbor_coords[i].x + neighbor_coords[i].y*map->width;
-        neighbors[neighbors_count++] = &graph->nodes[idx];
+        idx = neighbor_coords[i].x + neighbor_coords[i].y*map.width;
+        neighbors[neighbors_count++] = &graph.nodes[idx];
     }
 
     return neighbors_count;
 }
-size_t rl_graph_neighbors_axial(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors)
+size_t rl_graph_neighbors_axial(void *context, RL_Point point, RL_GraphNode **neighbors)
 {
+    RL_GraphContext *graph_context = (RL_GraphContext*) context;
     RL_ASSERT(RL_MAX_NEIGHBOR_COUNT >= 6 && "Default rl_graph_neighbors_axial includes max 6 neighbors");
-    return rl_graph_neighbors_axial_default(graph, point, neighbors, false);
+    RL_ASSERT(graph_context != NULL);
+    return rl_graph_neighbors_axial_default(graph_context->graph, graph_context->map, point, neighbors, false);
 }
-size_t rl_graph_neighbors_axial_passable(const RL_Graph *graph, RL_Point point, RL_GraphNode **neighbors)
+size_t rl_graph_neighbors_axial_passable(void *context, RL_Point point, RL_GraphNode **neighbors)
 {
+    RL_GraphContext *graph_context = (RL_GraphContext*) context;
     RL_ASSERT(RL_MAX_NEIGHBOR_COUNT >= 6 && "Default rl_graph_neighbors_axial_passable includes max 6 neighbors");
-    return rl_graph_neighbors_axial_default(graph, point, neighbors, true);
+    RL_ASSERT(graph_context != NULL);
+    return rl_graph_neighbors_axial_default(graph_context->graph, graph_context->map, point, neighbors, true);
 }
 
-RL_Graph *rl_graph_create(const RL_Map *map, RL_NeighborsFun neighbors_f, RL_PointFun point_f)
+RL_Graph rl_graph_create_scored(const RL_Map map, RL_Point start, RL_ScoreFun score_f, RL_NeighborsFun neighbors_f, RL_PointFun point_f)
 {
-    RL_Graph *graph = (RL_Graph*) RL_MALLOC(sizeof(*graph));
-    RL_ASSERT(graph);
-    if (graph == NULL) return NULL;
-    size_t length = map->width * map->height;
+    RL_Graph graph = rl_graph_create_from_map(map, neighbors_f, point_f);
+    rl_graph_score(graph, map, start, score_f);
+
+    return graph;
+}
+
+RL_Graph rl_graph_create_from_map(const RL_Map map, RL_NeighborsFun neighbors_f, RL_PointFun point_f)
+{
+    return rl_graph_create(map.width, map.height, neighbors_f, point_f);
+}
+
+RL_Graph rl_graph_create(unsigned int map_width, unsigned int map_height, RL_NeighborsFun neighbors_f, RL_PointFun point_f)
+{
+    RL_Graph graph = {0};
+    size_t length = map_width * map_height;
     RL_GraphNode *nodes = (RL_GraphNode*) RL_CALLOC(length, sizeof(*nodes));
     RL_ASSERT(nodes != NULL);
     if (nodes == NULL) {
-        RL_FREE(graph);
-        return NULL;
+        return graph;
     }
     if (point_f == NULL) {
         point_f = rl_point;
     }
-    for (unsigned int x=0; x<map->width; x++) {
-        for (unsigned int y=0; y<map->height; y++) {
-            size_t idx = x + y*map->width;
+    if (neighbors_f == NULL) {
+        neighbors_f = rl_graph_neighbors_ordinal_passable;
+    }
+    for (unsigned int x=0; x<map_width; x++) {
+        for (unsigned int y=0; y<map_height; y++) {
+            size_t idx = x + y*map_width;
             RL_GraphNode *node = &nodes[idx];
             node->point = point_f(x, y);
             node->score = FLT_MAX;
         }
     }
 
-    graph->length = length;
-    graph->nodes = nodes;
-    graph->context = map;
-    graph->neighbors = neighbors_f;
+    graph.length = length;
+    graph.nodes = nodes;
+    graph.neighbors = neighbors_f;
 
     return graph;
 }
 
-void rl_graph_add(RL_Graph *graph, const RL_Graph *graph_b)
+void rl_graph_add(RL_Graph graph, const RL_Graph graph_b)
 {
-    RL_ASSERT(graph != NULL);
-    RL_ASSERT(graph_b != NULL);
-    RL_ASSERT(graph->length == graph_b->length);
-    for (size_t i=0; i < graph->length; i++) {
-        RL_GraphNode *node = &graph->nodes[i];
-        if (node->score <= FLT_MAX - graph_b->nodes[i].score) {
-            node->score += graph_b->nodes[i].score;
+    RL_ASSERT(graph.nodes != NULL);
+    RL_ASSERT(graph_b.nodes != NULL);
+    RL_ASSERT(graph.length == graph_b.length);
+    if (graph.nodes == NULL || graph_b.nodes == NULL || graph.length != graph_b.length) return;
+    for (size_t i=0; i < graph.length; i++) {
+        RL_GraphNode *node = &graph.nodes[i];
+        if (node->score <= FLT_MAX - graph_b.nodes[i].score) {
+            node->score += graph_b.nodes[i].score;
         } else {
             node->score = FLT_MAX;
         }
     }
 }
 
-void rl_graph_weight(RL_Graph *graph, float coefficient)
+void rl_graph_combine(RL_Graph graph, const RL_Graph graph_b)
 {
-    RL_ASSERT(graph != NULL);
+    RL_ASSERT(graph.nodes != NULL);
+    RL_ASSERT(graph_b.nodes != NULL);
+    if (graph.nodes == NULL || graph_b.nodes == NULL || graph.length != graph_b.length) return;
+    for (size_t i=0; i < graph.length; i++) {
+        RL_GraphNode *node = &graph.nodes[i];
+        RL_GraphNode *node_b = &graph_b.nodes[i];
+        if (node->score < FLT_MAX) {
+            continue;
+        } else if (node_b->score < FLT_MAX) {
+            node->score = node_b->score;
+        }
+    }
+}
+
+void rl_graph_weight(RL_Graph graph, float coefficient)
+{
+    RL_ASSERT(graph.nodes != NULL);
     RL_ASSERT(coefficient <= 1 && coefficient >= 0);
-    for (size_t i=0; i < graph->length; i++) {
-        RL_GraphNode *node = &graph->nodes[i];
+    if (graph.nodes == NULL) return;
+    for (size_t i=0; i < graph.length; i++) {
+        RL_GraphNode *node = &graph.nodes[i];
         node->score *= coefficient;
     }
 }
 
-RL_Graph *rl_dijkstra_create(const RL_Map *map,
-                            RL_Point start,
-                            RL_DistanceFun distance_f,
-                            RL_NeighborsFun neighbors_f)
+RL_GraphContext rl_graph_context(const RL_Graph graph, const RL_Map map)
 {
-    RL_Graph *graph = rl_graph_create(map, neighbors_f, NULL);
-    rl_dijkstra_score(graph, start, distance_f);
-
-    return graph;
+    return (RL_GraphContext) {
+        .map = map,
+        .graph = graph,
+    };
 }
 
-/* default scorer function for Dijkstra - this simply accepts a RL_DistanceFun as context and adds the current nodes */
-/* score to the result of the distance function */
-struct rl_score_context { RL_DistanceFun fun; };
-float rl_dijkstra_default_score_f(const RL_GraphNode *current, const RL_GraphNode *neighbor, void *context)
+void rl_graph_score(RL_Graph graph, const RL_Map map, RL_Point start, RL_ScoreFun score_f)
 {
-    RL_ASSERT(current != NULL && neighbor != NULL && context != NULL);
-    struct rl_score_context *distance_f = (struct rl_score_context*) context;
-
-    return current->score + distance_f->fun(current->point, neighbor->point);
+    RL_GraphContext context = rl_graph_context(graph, map);
+    rl_graph_score_with_context(graph, &context, start, score_f);
 }
 
-void rl_dijkstra_score(RL_Graph *graph, RL_Point start, RL_DistanceFun distance_f)
+static int rl_scored_graph_heap_comparison(const void *heap_item_a, const void *heap_item_b)
 {
-    struct rl_score_context scorer_context;
-    scorer_context.fun = distance_f != NULL ? distance_f : rl_distance_simple; /* default to rl_distance_simple */
-    rl_dijkstra_score_ex(graph, start, rl_dijkstra_default_score_f, &scorer_context);
+    RL_GraphNode *node_a = (RL_GraphNode*) heap_item_a;
+    RL_GraphNode *node_b = (RL_GraphNode*) heap_item_b;
+
+    return node_a->score < node_b->score;
 }
 
-void rl_dijkstra_score_ex(RL_Graph *graph, RL_Point start, RL_ScoreFun score_f, void *score_context)
+void rl_graph_score_with_context(RL_Graph graph, void *context, RL_Point start, RL_ScoreFun score_f)
 {
-    RL_ASSERT(graph != NULL);
-    RL_ASSERT(score_f != NULL);
-    RL_ASSERT(score_context != NULL);
-    if (graph == NULL || score_f == NULL || score_context == NULL) return;
-    if (graph->neighbors == NULL) {
-        graph->neighbors = rl_graph_neighbors_ordinal_passable;
+    RL_ASSERT(graph.nodes != NULL && graph.length > 0);
+    if (graph.nodes == NULL || graph.length == 0) return;
+    if (graph.neighbors == NULL) {
+        graph.neighbors = rl_graph_neighbors_ordinal_passable;
+    }
+    if (score_f == NULL) {
+        score_f = rl_graph_score_simple;
     }
 
     RL_GraphNode *current;
-    RL_Heap *heap = rl_heap_create(graph->length, &rl_scored_graph_heap_comparison);
+    RL_Heap *heap = rl_heap_create(graph.length, &rl_scored_graph_heap_comparison);
 
     /* reset scores of dijkstra map, setting the start point to 0 */
-    for (size_t i=0; i < graph->length; i++) {
-        RL_GraphNode *node = &graph->nodes[i];
+    for (size_t i=0; i < graph.length; i++) {
+        RL_GraphNode *node = &graph.nodes[i];
         if (node->point.x == start.x && node->point.y == start.y) {
             node->score = 0;
             current = node;
@@ -2561,14 +2635,16 @@ void rl_dijkstra_score_ex(RL_Graph *graph, RL_Point start, RL_ScoreFun score_f, 
     }
 
     RL_ASSERT(current != NULL);
+    if (current == NULL) return;
+
     rl_heap_insert(heap, (void*) current);
     current = (RL_GraphNode*) rl_heap_pop(heap);
     while (current) {
         RL_GraphNode *neighbors[RL_MAX_NEIGHBOR_COUNT];
-        size_t neighbors_count = graph->neighbors(graph, current->point, neighbors);
+        size_t neighbors_count = graph.neighbors(context, current->point, neighbors);
         for (size_t i=0; i<neighbors_count; i++) {
             RL_GraphNode *neighbor = neighbors[i];
-            float distance = score_f(current, neighbor, score_context);
+            float distance = score_f(context, current, neighbor);
             if (distance < neighbor->score) {
                 if (neighbor->score == FLT_MAX) {
                     rl_heap_insert(heap, neighbor);
@@ -2583,28 +2659,25 @@ void rl_dijkstra_score_ex(RL_Graph *graph, RL_Point start, RL_ScoreFun score_f, 
     rl_heap_destroy(heap);
 }
 
-void rl_graph_reset(RL_Graph *graph)
+void rl_graph_reset(RL_Graph graph)
 {
-    RL_ASSERT(graph != NULL);
-    if (graph == NULL) return;
+    RL_ASSERT(graph.nodes != NULL);
+    if (graph.nodes == NULL) return;
     /* reset scores of dijkstra map */
-    for (size_t i=0; i < graph->length; i++) {
-        RL_GraphNode *node = &graph->nodes[i];
+    for (size_t i=0; i < graph.length; i++) {
+        RL_GraphNode *node = &graph.nodes[i];
         node->score = FLT_MAX;
     }
 }
 
-void rl_graph_destroy(RL_Graph *graph)
+void rl_graph_destroy(RL_Graph graph)
 {
-    if (graph) {
-        if (graph->nodes) {
-            RL_FREE(graph->nodes);
-        }
-        RL_FREE(graph);
+    if (graph.nodes) {
+        RL_FREE(graph.nodes);
     }
 }
 
-bool rl_graph_is_scored(const RL_Graph *graph, RL_Point point)
+bool rl_graph_is_scored(const RL_Graph graph, RL_Point point)
 {
     RL_GraphNode *n = rl_graph_node(graph, point);
     if (n) {
@@ -2614,29 +2687,33 @@ bool rl_graph_is_scored(const RL_Graph *graph, RL_Point point)
     }
 }
 
-RL_GraphNode *rl_graph_node(const RL_Graph *graph, RL_Point point)
+RL_GraphNode *rl_graph_node(const RL_Graph graph, RL_Point point)
 {
-    RL_ASSERT(graph);
-    if (graph == NULL) return NULL;
-    for (unsigned int i=0; i<graph->length; ++i) {
-        RL_GraphNode *n = &graph->nodes[i];
-        RL_ASSERT(n);
-        if (n && n->point.x == point.x && n->point.y == point.y) {
+    RL_ASSERT(graph.nodes != NULL);
+    if (graph.nodes == NULL) return NULL;
+    for (unsigned int i=0; i<graph.length; ++i) {
+        RL_GraphNode *n = &graph.nodes[i];
+        RL_ASSERT(n != NULL);
+        if (n != NULL && n->point.x == point.x && n->point.y == point.y) {
             return n;
         }
     }
     return NULL;
 }
 
-RL_GraphNode *rl_graph_node_lowest_neighbor(const RL_Graph *graph, const RL_GraphNode *node)
+RL_GraphNode *rl_graph_node_lowest_neighbor(const RL_Graph graph, const RL_Map map, const RL_GraphNode *node)
 {
-    RL_ASSERT(graph);
-    RL_ASSERT(graph->neighbors);
-    RL_ASSERT(node);
-    if (node == NULL || graph == NULL || graph->neighbors == NULL) return NULL;
+    RL_ASSERT(graph.nodes != NULL);
+    RL_ASSERT(node != NULL);
+    if (node == NULL || graph.nodes == NULL) return NULL;
+    RL_NeighborsFun neighbors_f = graph.neighbors;
+    if (graph.neighbors == NULL) {
+        neighbors_f = rl_graph_neighbors_ordinal_passable;
+    }
+    RL_GraphContext context = rl_graph_context(graph, map);
     RL_GraphNode *lowest_neighbor = NULL;
     RL_GraphNode *neighbors[RL_MAX_NEIGHBOR_COUNT];
-    size_t neighbors_count = graph->neighbors(graph, node->point, neighbors);
+    size_t neighbors_count = neighbors_f(&context, node->point, neighbors);
     for (size_t i=0; i<neighbors_count; i++) {
         RL_GraphNode *n = neighbors[i];
         if (lowest_neighbor == NULL || n->score < lowest_neighbor->score) {
@@ -2647,17 +2724,21 @@ RL_GraphNode *rl_graph_node_lowest_neighbor(const RL_Graph *graph, const RL_Grap
     return lowest_neighbor;
 }
 
-RL_GraphNode *rl_graph_node_next_neighbor(const RL_Graph *graph, const RL_GraphNode *node, const RL_GraphNode *neighbor)
+RL_GraphNode *rl_graph_node_next_neighbor(const RL_Graph graph, const RL_Map map, const RL_GraphNode *start_node, const RL_GraphNode *current_neighbor)
 {
-    RL_ASSERT(graph);
-    RL_ASSERT(graph->neighbors);
-    RL_ASSERT(node);
-    if (node == NULL || graph == NULL || graph->neighbors == NULL) return NULL;
-    if (neighbor == NULL) {
-        return rl_graph_node_lowest_neighbor(graph, node);
+    RL_ASSERT(graph.nodes != NULL);
+    RL_ASSERT(start_node != NULL);
+    if (start_node == NULL || graph.nodes == NULL) return NULL;
+    if (current_neighbor == NULL) {
+        return rl_graph_node_lowest_neighbor(graph, map, start_node);
     }
+    RL_NeighborsFun neighbors_f = graph.neighbors;
+    if (graph.neighbors == NULL) {
+        neighbors_f = rl_graph_neighbors_ordinal_passable;
+    }
+    RL_GraphContext context = rl_graph_context(graph, map);
     RL_GraphNode *neighbors[RL_MAX_NEIGHBOR_COUNT];
-    size_t neighbors_count = graph->neighbors(graph, node->point, neighbors);
+    size_t neighbors_count = neighbors_f(&context, start_node->point, neighbors);
     bool neighbor_found = false;
     rl_graph_node_sort_neighbors(neighbors, neighbors_count);
     for (size_t i=0; i<neighbors_count; i++) {
@@ -2669,7 +2750,7 @@ RL_GraphNode *rl_graph_node_next_neighbor(const RL_Graph *graph, const RL_GraphN
                 return n;
             }
         } else {
-            if (n == neighbor) {
+            if (n == current_neighbor) {
                 neighbor_found = true;
             }
         }
@@ -2690,38 +2771,35 @@ int rl_graph_compare_neighbors(const void *a, const void *b)
 void rl_graph_node_sort_neighbors(RL_GraphNode **neighbors, size_t neighbors_count)
 {
     RL_ASSERT(neighbors != NULL);
+    if (neighbors == NULL) return;
     RL_ASSERT(*neighbors != NULL);
-    if (neighbors == NULL || *neighbors == NULL) return;
+    if (*neighbors == NULL) return;
     qsort(neighbors, neighbors_count, sizeof(*neighbors), rl_graph_compare_neighbors);
 }
 #endif /* RL_ENABLE_PATHFINDING */
 
 #if RL_ENABLE_FOV
-RL_FOV *rl_fov_create(unsigned int width, unsigned int height)
+RL_FOV rl_fov_create(unsigned int width, unsigned int height)
 {
-    RL_FOV *fov;
+    RL_FOV fov = {0};
     unsigned char *memory;
     RL_ASSERT(width > 0 && height > 0);
     RL_ASSERT(width != UINT_MAX && !(width > UINT_MAX / height)); /* check for overflow */
-    fov = NULL;
     /* allocate all the memory we need at once */
-    memory = (unsigned char*) RL_CALLOC(sizeof(*fov) + sizeof(*fov->visibility)*width*height, 1);
-    RL_ASSERT(memory);
-    if (memory == NULL) return NULL;
-    fov = (RL_FOV*) memory;
-    fov->width = width;
-    fov->height = height;
-    fov->visibility = (RL_Byte*) (memory + sizeof(*fov));
-    RL_ASSERT(fov);
-    RL_ASSERT(fov->visibility);
+    memory = (unsigned char*) RL_CALLOC(sizeof(*fov.visibility)*width*height, 1);
+    RL_ASSERT(memory != NULL);
+    if (memory == NULL) return fov;
+    fov.width = width;
+    fov.height = height;
+    fov.visibility = (RL_Byte*) memory;
 
     return fov;
 }
 
-void rl_fov_destroy(RL_FOV *fov)
+void rl_fov_destroy(RL_FOV fov)
 {
-    if (fov) {
-        RL_FREE(fov);
+    if (fov.visibility) {
+        RL_FREE(fov.visibility);
     }
 }
 
@@ -2805,8 +2883,8 @@ void rl_fov_calculate_recursive(void *map, unsigned int origin_x, unsigned int o
 }
 
 struct RL_FOVMap {
-    RL_FOV *fov;
-    const RL_Map *map;
+    RL_FOV fov;
+    RL_Map map;
     unsigned int origin_x;
     unsigned int origin_y;
     int fov_radius;
@@ -2816,7 +2894,7 @@ void rl_fovmap_mark_visible_f(unsigned int x, unsigned int y, void *context)
 {
     struct RL_FOVMap *map = (struct RL_FOVMap*) context;
     if (rl_map_in_bounds(map->map, x, y)) {
-        map->fov->visibility[x + y*map->map->width] = RL_TileVisible;
+        map->fov.visibility[x + y*map->map.width] = RL_TileVisible;
     }
 }
 
@@ -2846,22 +2924,22 @@ bool rl_fovmap_in_range_f(unsigned int x, unsigned int y, void *context)
 #endif
 }
 
-void rl_fov_calculate(RL_FOV *fov, const RL_Map *map, unsigned int x, unsigned int y, int fov_radius)
+void rl_fov_calculate(RL_FOV fov, const RL_Map map, unsigned int x, unsigned int y, int fov_radius)
 {
     struct RL_FOVMap fovmap;
     unsigned int cur_x, cur_y;
     if (!rl_map_in_bounds(map, x, y)) {
         return;
     }
-    if (x >= fov->width || y >= fov->height) {
+    if (x >= fov.width || y >= fov.height) {
         return;
     }
 
     /* set previously visible tiles to seen */
-    for (cur_x=0; cur_x<map->width; ++cur_x) {
-        for (cur_y=0; cur_y<map->height; ++cur_y) {
-            if (fov->visibility[cur_x + cur_y*map->width] == RL_TileVisible) {
-                fov->visibility[cur_x + cur_y*map->width] = RL_TileSeen;
+    for (cur_x=0; cur_x<map.width; ++cur_x) {
+        for (cur_y=0; cur_y<map.height; ++cur_y) {
+            if (fov.visibility[cur_x + cur_y*map.width] == RL_TileVisible) {
+                fov.visibility[cur_x + cur_y*map.width] = RL_TileSeen;
             }
         }
     }
@@ -2884,46 +2962,46 @@ void rl_fov_calculate_ex(void *context, unsigned int x, unsigned int y, RL_IsInR
     }
 }
 
-bool rl_fov_is_visible(const RL_FOV *map, unsigned int x, unsigned int y)
+bool rl_fov_is_visible(const RL_FOV map, unsigned int x, unsigned int y)
 {
-    if (map == NULL) return false;
-    if (!rl_map_in_bounds((const RL_Map*) map, x, y)) {
+    if (map.visibility == NULL) return false;
+    if (!RL_IN_BOUNDS(map, x, y)) {
         return false;
     }
-    return map->visibility[x + y*map->width] == RL_TileVisible;
+    return map.visibility[x + y*map.width] == RL_TileVisible;
 }
 
-bool rl_fov_is_seen(const RL_FOV *map, unsigned int x, unsigned int y)
+bool rl_fov_is_seen(const RL_FOV map, unsigned int x, unsigned int y)
 {
-    if (map == NULL) return false;
-    if (!rl_map_in_bounds((const RL_Map*) map, x, y)) {
+    if (map.visibility == NULL) return false;
+    if (!RL_IN_BOUNDS(map, x, y)) {
         return false;
     }
-    return map->visibility[x + y*map->width] == RL_TileSeen;
+    return map.visibility[x + y*map.width] == RL_TileSeen;
 }
 #endif /* if RL_ENABLE_FOV */
 
 #if RL_ENABLE_FILE
 #include <stdio.h>
 
-bool rl_file_save_map(const RL_Map *data, void *file)
+bool rl_file_save_map(const RL_Map data, void *file)
 {
     int version = 0;
 
-    RL_ASSERT(data != NULL && file != NULL);
+    RL_ASSERT(data.tiles != NULL && file != NULL);
     if (fwrite(&version, sizeof(version), 1, (FILE*) file) < 1) {
         return false;
     }
-    if (fwrite(data, sizeof(*data), 1, (FILE*)file) < 1) {
+    if (fwrite(&data, sizeof(data), 1, (FILE*)file) < 1) {
         return false;
     }
-    if (fwrite(data->tiles, sizeof(*data->tiles), data->width * data->height, (FILE*) file) < data->width * data->height) {
+    if (fwrite(data.tiles, sizeof(*data.tiles), data.width * data.height, (FILE*) file) < data.width * data.height) {
         return false;
     }
     return true;
 }
 
-bool rl_file_load_map(RL_Map **data, void *file)
+bool rl_file_load_map(RL_Map *data, void *file)
 {
     int version;
     RL_Map dest;
@@ -2946,9 +3024,7 @@ bool rl_file_load_map(RL_Map **data, void *file)
         return false;
     }
 
-    *data = (RL_Map*) malloc(sizeof(dest));
-    RL_ASSERT(*data != NULL);
-    *data = (RL_Map*) memcpy(*data, &dest, sizeof(dest));
+    data = (RL_Map*) memcpy(data, &dest, sizeof(dest));
     if (data == NULL) {
         return false;
     }
@@ -2956,24 +3032,24 @@ bool rl_file_load_map(RL_Map **data, void *file)
     return true;
 }
 
-bool rl_file_save_fov(const RL_FOV *data, void *file)
+bool rl_file_save_fov(const RL_FOV data, void *file)
 {
     int version = 0;
 
-    RL_ASSERT(data != NULL && file != NULL);
+    RL_ASSERT(data.visibility != NULL && file != NULL);
     if (fwrite(&version, sizeof(version), 1, (FILE*) file) < 1) {
         return false;
     }
-    if (fwrite(data, sizeof(*data), 1, (FILE*) file) < 1) {
+    if (fwrite(&data, sizeof(data), 1, (FILE*) file) < 1) {
         return false;
     }
-    if (fwrite(data->visibility, sizeof(*data->visibility), data->width * data->height, (FILE*) file) < data->width * data->height) {
+    if (fwrite(data.visibility, sizeof(*data.visibility), data.width * data.height, (FILE*) file) < data.width * data.height) {
         return false;
     }
     return true;
 }
 
-bool rl_file_load_fov(RL_FOV **data, void *file)
+bool rl_file_load_fov(RL_FOV *data, void *file)
 {
     int version;
     RL_FOV dest;
@@ -2990,15 +3066,13 @@ bool rl_file_load_fov(RL_FOV **data, void *file)
         return false;
     }
     RL_ASSERT(dest.width > 0 && dest.height > 0);
-    dest.visibility = (RL_Byte*) malloc(sizeof(*dest.visibility) * dest.width * dest.height);
+    dest.visibility = (RL_Byte*) RL_MALLOC(sizeof(*dest.visibility) * dest.width * dest.height);
     RL_ASSERT(dest.visibility != NULL);
     if (fread(dest.visibility, sizeof(*dest.visibility), dest.width * dest.height, (FILE*)file) < dest.width * dest.height) {
         return false;
     }
 
-    *data = (RL_FOV*) malloc(sizeof(dest));
-    RL_ASSERT(*data != NULL);
-    *data = (RL_FOV*) memcpy(*data, &dest, sizeof(dest));
+    data = (RL_FOV*) memcpy(data, &dest, sizeof(dest));
     if (data == NULL) {
         return false;
     }

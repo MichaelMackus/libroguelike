@@ -16,15 +16,15 @@ int main(int argc, char **argv)
     printf("Seed: %ld\n", seed);
     srand(seed);
 
-    RL_Map *map = rl_map_create(WIDTH, HEIGHT);
+    RL_Map map = rl_map_create(WIDTH, HEIGHT);
     if (rl_mapgen_automata(map, RL_MAPGEN_AUTOMATA_DEFAULTS) != RL_OK) {
         fprintf(stderr, "Error during mapgen\n");
         return 1;
     }
 
-    for (unsigned int y=0; y<map->height; ++y) {
-        for (unsigned int x=0; x<map->width; ++x) {
-            RL_Tile t = map->tiles[x + y*map->width];
+    for (unsigned int y=0; y<map.height; ++y) {
+        for (unsigned int x=0; x<map.width; ++x) {
+            RL_Tile t = map.tiles[x + y*map.width];
             if (t == RL_TileRoom || t == RL_TileCorridor)
                 printf("%c", '.');
             else

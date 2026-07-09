@@ -12,7 +12,7 @@ int main(void)
 {
     int x, y;
 
-    RL_Map *map = rl_map_create(WIDTH, HEIGHT);
+    RL_Map map = rl_map_create(WIDTH, HEIGHT);
     RL_MapgenConfigBSP config = RL_MAPGEN_BSP_DEFAULTS;
     RL_BSP *bsp = rl_bsp_create(WIDTH, HEIGHT);
     config.max_splits = 3;
@@ -26,7 +26,7 @@ int main(void)
 
     for (y=0; y<HEIGHT; ++y) {
         for (x=0; x<WIDTH; ++x) {
-            printf("%c", map->tiles[x+y*WIDTH]);
+            printf("%c", map.tiles[x+y*WIDTH]);
         }
         printf("\n");
     }

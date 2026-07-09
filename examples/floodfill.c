@@ -17,7 +17,7 @@ int main(int argc, char **argv)
     printf("Seed: %ld\n", seed);
     srand(seed);
 
-    RL_Map *map = rl_map_create(WIDTH, HEIGHT);
+    RL_Map map = rl_map_create(WIDTH, HEIGHT);
 
     // check all tiles reachable with random corridor generation
     RL_MapgenConfigBSP config = {
@@ -34,10 +34,10 @@ int main(int argc, char **argv)
         fprintf(stderr, "Error while generating map!\n");
         return 1;
     }
-    RL_Graph *floodfill = rl_graph_floodfill_largest_area(map);
+    RL_Graph floodfill = rl_graph_floodfill_largest_area(map);
     for (y = 0; y < HEIGHT; ++y) {
         for (x = 0; x < WIDTH; ++x) {
-            if (floodfill->nodes[x + y*WIDTH].score < FLT_MAX) {
+            if (floodfill.nodes[x + y*WIDTH].score < FLT_MAX) {
                 printf("*");
             } else {
                 printf(" ");
@@ -46,9 +46,9 @@ int main(int argc, char **argv)
         printf("\n");
     }
     // check to ensure map tiles are all reachable
-    for (unsigned int x = 0; x < map->width; ++x) {
-        for (unsigned int y = 0; y < map->height; ++y) {
-            if (!rl_map_tile_is(map, x, y, RL_TileRock) && floodfill->nodes[x + y*map->width].score == FLT_MAX) {
+    for (unsigned int x = 0; x < map.width; ++x) {
+        for (unsigned int y = 0; y < map.height; ++y) {
+            if (!rl_map_tile_is(map, x, y, RL_TileRock) && floodfill.nodes[x + y*map.width].score == FLT_MAX) {
                 assert("ERROR: Unreachable tile found!" == 0);
             }
         }
@@ -61,7 +61,7 @@ int main(int argc, char **argv)
     floodfill = rl_graph_floodfill_largest_area(map);
     for (y = 0; y < HEIGHT; ++y) {
         for (x = 0; x < WIDTH; ++x) {
-            if (floodfill->nodes[x + y*WIDTH].score < FLT_MAX) {
+            if (floodfill.nodes[x + y*WIDTH].score < FLT_MAX) {
                 printf("*");
             } else {
                 printf(" ");
@@ -70,9 +70,9 @@ int main(int argc, char **argv)
         printf("\n");
     }
     // check to ensure map tiles are all reachable
-    for (unsigned int x = 0; x < map->width; ++x) {
-        for (unsigned int y = 0; y < map->height; ++y) {
-            if (!rl_map_tile_is(map, x, y, RL_TileRock) && floodfill->nodes[x + y*map->width].score == FLT_MAX) {
+    for (unsigned int x = 0; x < map.width; ++x) {
+        for (unsigned int y = 0; y < map.height; ++y) {
+            if (!rl_map_tile_is(map, x, y, RL_TileRock) && floodfill.nodes[x + y*map.width].score == FLT_MAX) {
                 assert("ERROR: Unreachable tile found!" == 0);
             }
         }

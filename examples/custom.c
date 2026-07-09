@@ -52,19 +52,19 @@ int main(void)
     int quit = 0;
     while (!quit) {
         // regenerate FOV
-        rl_fov_calculate(&fov, &map, player.x, player.y, 16);
+        rl_fov_calculate(fov, map, player.x, player.y, 16);
 
         // draw the map, only drawing previously seen tiles or tiles within the FOV
         for (y = 0; y < map.height; ++y) {
             for (x = 0; x < map.width; ++x) {
-                if (rl_fov_is_visible(&fov, x, y) || rl_fov_is_seen(&fov, x, y)) {
+                if (rl_fov_is_visible(fov, x, y) || rl_fov_is_seen(fov, x, y)) {
                     RL_Tile t = map.tiles[map.width*y + x];
                     char ch = t;
                     // handle player & downstair tiles
                     if (y == player.y && x == player.x) {
                         ch = '@';
                     }
-                    if (!rl_fov_is_visible(&fov, x, y)) {
+                    if (!rl_fov_is_visible(fov, x, y)) {
                         // if not visible but previously seen, we draw in a muted grey
                         attroff(A_BOLD);
                         mvaddch(y, x, ch);
@@ -133,7 +133,7 @@ int main(void)
                 break;
         }
         // update the player position if the target is passable
-        if (rl_map_is_passable(&map, new_player.x, new_player.y)) {
+        if (rl_map_is_passable(map, new_player.x, new_player.y)) {
             player = new_player;
         }
     }

@@ -10,7 +10,7 @@
 int main()
 {
     srand(time(0));
-    RL_Map *map = rl_map_create(WIDTH, HEIGHT);
+    RL_Map map = rl_map_create(WIDTH, HEIGHT);
     if (rl_mapgen_bsp(map, RL_MAPGEN_BSP_DEFAULTS) != RL_OK) {
         fprintf(stderr, "Error while generating map!\n");
         return 1;
@@ -18,7 +18,7 @@ int main()
 
     for (int y = 0; y < HEIGHT; ++y) {
         for (int x = 0; x < WIDTH; ++x) {
-            RL_Tile t = (RL_Tile) map->tiles[map->width*y + x];
+            RL_Tile t = (RL_Tile) map.tiles[map.width*y + x];
             switch (t) {
                 case RL_TileRock:
                     {

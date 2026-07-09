@@ -26,13 +26,13 @@ bool mapgen(void)
     RL_Status status;
     switch (mapgen_type) {
         case AUTOMATA:
-            status = rl_mapgen_automata(&map, RL_MAPGEN_AUTOMATA_DEFAULTS);
+            status = rl_mapgen_automata(map, RL_MAPGEN_AUTOMATA_DEFAULTS);
             break;
         case BSP:
-            status = rl_mapgen_bsp(&map, RL_MAPGEN_BSP_DEFAULTS);
+            status = rl_mapgen_bsp(map, RL_MAPGEN_BSP_DEFAULTS);
             break;
         case MAZE:
-            status = rl_mapgen_maze(&map);
+            status = rl_mapgen_maze(map);
             break;
     }
 
@@ -43,7 +43,7 @@ bool mapgen(void)
 
     // generate a random starting tile for player
     int player_x = 0, player_y = 0;
-    while (!rl_map_tile_is(&map, player_x, player_y, RL_TileRoom)) {
+    while (!rl_map_tile_is(map, player_x, player_y, RL_TileRoom)) {
         player_x = rl_rng_generate(0, WIDTH - 1);
         player_y = rl_rng_generate(0, HEIGHT - 1);
     }
@@ -154,7 +154,7 @@ int main(int argc, char **argv)
                 break;
         }
         // update the player position if the target is passable
-        if (rl_map_is_passable(&map, rl_axial_to_map_x(new_player), rl_axial_to_map_y(new_player))) {
+        if (rl_map_is_passable(map, rl_axial_to_map_x(new_player), rl_axial_to_map_y(new_player))) {
             player = new_player;
         } else {
             new_player = player;
