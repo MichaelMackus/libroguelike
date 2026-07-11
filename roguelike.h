@@ -2143,7 +2143,7 @@ float rl_distance_manhattan(RL_Point node, RL_Point end)
 
 float rl_distance_manhattan_3d(RL_Point3d node, RL_Point3d end)
 {
-    return fabs(node.x - end.x) + fabs(node.y - end.y) + fabs(node.z - node.z);
+    return fabs(node.x - end.x) + fabs(node.y - end.y) + fabs(node.z - end.z);
 }
 
 float rl_distance_manhattan_axial(RL_Point node, RL_Point end)

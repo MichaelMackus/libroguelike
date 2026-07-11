@@ -28,6 +28,7 @@ RL_Map map = { .width = WIDTH, .height = HEIGHT, .tiles = (RL_Byte*) tiles };
 MapgenType mapgen_type = AUTOMATA;
 RL_Point player, new_player;
 RL_Path *player_path;
+RL_Graph player_graph;
 
 // generate new map depending on mapgen type selected
 bool mapgen(void)
@@ -89,11 +90,62 @@ int main(int argc, char **argv)
     }
 
     bool hex_display = true;
-    bool outline_display = false;
+    bool outline_display = false, score_display = false;
     int camera_x = 0, camera_y = 0, input = 0;
     do {
-        if (!player_path) { // only handle input if we're not moving to a destination path
+        // update the player position if the target is passable
+        if (rl_map_is_passable(map, rl_axial_to_map_x(new_player), rl_axial_to_map_y(new_player))) {
+            player = new_player;
+        } else {
+            new_player = player;
+        }
+        // display map
+        clear();
+        int player_col = rl_axial_to_map_x(player);
+        int player_row = rl_axial_to_map_y(player);
+        for (int y=camera_y; y<HEIGHT; y++) {
+            for (int x=camera_x; x<WIDTH; x++) {
+                if (x < 0 || y < 0 || x >= WIDTH || y >= WIDTH) continue;
+                int disp_x = x - camera_x, disp_y = y - camera_y;
+                if (hex_display) {
+                    disp_x *= 4;
+                    disp_y *= 2;
+                    if (y % 2 != 0)
+                        disp_x += 2;
+                    // display hex outline
+                    if (outline_display) {
+                        attron(COLOR_PAIR(2));
+                        mvaddch(disp_y, disp_x - 1, '|');
+                        mvaddch(disp_y, disp_x + 1, '|');
+                        mvaddch(disp_y + 1, disp_x - 1, '\\');
+                        mvaddch(disp_y + 1, disp_x, 'v');
+                        mvaddch(disp_y + 1, disp_x + 1, '/');
+                        mvaddch(disp_y - 1, disp_x, '^');
+                        attroff(COLOR_PAIR(2));
+                    }
+                }
+                char ch = map.tiles[x + y*WIDTH];
+                if (score_display && player_path) {
+                    // display score from pathfinding in hex if < 10
+                    RL_GraphNode *node = rl_graph_node(player_graph, rl_point_axial(x, y));
+                    if (node && node->score < 10) {
+                        ch = (int)node->score + '0';
+                    }
+                }
+                attron(A_BOLD);
+                attron(COLOR_PAIR(1));
+                if (x == player_col && y == player_row)
+                    mvaddch(disp_y, disp_x, '@');
+                else
+                    mvaddch(disp_y, disp_x, ch);
+                attroff(COLOR_PAIR(1));
+                attroff(A_BOLD);
+            }
+        }
+        refresh();
+        if (!player_path || score_display) { // only handle input if we're not moving to a destination path
             // handle input
+            input = getch();
             switch (input) {
                 case 'r':
                     // generate new map
@@ -121,6 +173,10 @@ int main(int argc, char **argv)
                 case 'o':
                     // toggle outline rendering
                     outline_display = !outline_display;
+                    break;
+                case 'x':
+                    // toggle display of pathfinding scores
+                    score_display = !score_display;
                     break;
                 // WASD = camera control
                 case 'w':
@@ -175,6 +231,10 @@ int main(int argc, char **argv)
                                 rl_path_destroy(player_path);
                                 player_path = NULL;
                             }
+                            if (player_graph.length == 0) {
+                                player_graph = rl_graph_create_from_map(map, rl_graph_neighbors_axial_passable);
+                                rl_graph_convert_to_axial(player_graph);
+                            }
                             // if we have a mouse event & the destination is seen & passable, create a path to the destination
                             RL_Point dest = rl_point(ev.x, ev.y);
                             if (hex_display) { // convert mouse x & y to hex grid x & y
@@ -187,13 +247,10 @@ int main(int argc, char **argv)
                             }
                             if (rl_map_is_passable(map, dest.x, dest.y)) {
                                 dest = rl_point_axial(dest.x, dest.y);
-                                RL_Graph graph = rl_graph_create_from_map(map,
-                                                                         rl_graph_neighbors_axial_passable);
-                                rl_graph_convert_to_axial(graph);
-                                rl_graph_score(graph, map, dest, rl_graph_score_manhattan_axial);
-                                player_path = rl_path_create_from_graph(graph, map, player);
+                                rl_graph_reset(player_graph);
+                                rl_graph_score(player_graph, map, dest, rl_graph_score_manhattan_axial);
+                                player_path = rl_path_create_from_graph(player_graph, map, player);
                                 player_path = rl_path_walk(player_path); // skip first point
-                                rl_graph_destroy(graph);
                             }
                         }
                         break;
@@ -203,52 +260,6 @@ int main(int argc, char **argv)
             new_player = player_path->point;
             player_path = rl_path_walk(player_path);
             Sleep(50); // so we can see the movement
-        }
-        // update the player position if the target is passable
-        if (rl_map_is_passable(map, rl_axial_to_map_x(new_player), rl_axial_to_map_y(new_player))) {
-            player = new_player;
-        } else {
-            new_player = player;
-        }
-        // display map
-        clear();
-        int player_col = rl_axial_to_map_x(player);
-        int player_row = rl_axial_to_map_y(player);
-        for (int y=camera_y; y<HEIGHT; y++) {
-            for (int x=camera_x; x<WIDTH; x++) {
-                if (x < 0 || y < 0 || x >= WIDTH || y >= WIDTH) continue;
-                int disp_x = x - camera_x, disp_y = y - camera_y;
-                if (hex_display) {
-                    disp_x *= 4;
-                    disp_y *= 2;
-                    if (y % 2 != 0)
-                        disp_x += 2;
-                    // display hex outline
-                    if (outline_display) {
-                        attron(COLOR_PAIR(2));
-                        mvaddch(disp_y, disp_x - 1, '|');
-                        mvaddch(disp_y, disp_x + 1, '|');
-                        mvaddch(disp_y + 1, disp_x - 1, '\\');
-                        mvaddch(disp_y + 1, disp_x, 'v');
-                        mvaddch(disp_y + 1, disp_x + 1, '/');
-                        mvaddch(disp_y - 1, disp_x, '^');
-                        attroff(COLOR_PAIR(2));
-                    }
-                }
-                char ch = map.tiles[x + y*WIDTH];
-                attron(A_BOLD);
-                attron(COLOR_PAIR(1));
-                if (x == player_col && y == player_row)
-                    mvaddch(disp_y, disp_x, '@');
-                else
-                    mvaddch(disp_y, disp_x, ch);
-                attroff(COLOR_PAIR(1));
-                attroff(A_BOLD);
-            }
-        }
-        refresh();
-        if (!player_path) { // only handle input if we're not moving to a destination path
-            input = getch();
         }
     } while (input != 'q');
 
