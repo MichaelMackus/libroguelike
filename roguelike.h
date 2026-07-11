@@ -209,6 +209,13 @@ typedef enum {
     RL_SplitVertically   /* split the BSP node on the y axis (splits height) */
 } RL_SplitDirection;
 
+typedef enum {
+    RL_OK = 0,
+    RL_ErrorMemory,
+    RL_ErrorNullParameter,
+    RL_ErrorMapgenInvalidConfig
+} RL_Status;
+
 /**
  * Random map generation
  */
@@ -219,8 +226,8 @@ RL_Map rl_map_create(unsigned int width, unsigned int height);
 /* Frees the map & internal memory. */
 void rl_map_destroy(RL_Map map);
 
-/* Enum representing the type of corridor connection algorithm. RL_ConnectRandomly is the default and results in the
- * most interesting & aesthetic maps. */
+/* Enum representing the type of corridor connection algorithm to connect the BSP graph of rooms with.
+ * RL_ConnectRandomly is the default and results in the most interesting & aesthetic maps. */
 typedef enum {
     RL_ConnectNone = 0,       /* don't connect corridors */
     RL_ConnectRandomly,       /* connect corridors to random leaf nodes */
@@ -236,8 +243,8 @@ typedef struct {
     unsigned int room_max_height;
     unsigned int room_padding;
     RL_MapgenCorridorConnection draw_corridors; /* type of corridor connection algorithm to use - if RL_ENABLE_PATHFINDING corridors are connected via Dijkstra pathfinding */
-    bool draw_doors; /* whether to draw doors while connecting corridors */
-    int max_splits; /* max times to split BSP - set lower for less rooms */
+    bool draw_doors;                            /* whether to draw doors while connecting corridors */
+    int max_splits;                             /* max times to split BSP - set lower for less rooms */
 } RL_MapgenConfigBSP;
 
 /* Provide some defaults for mapgen. */
@@ -251,13 +258,6 @@ typedef struct {
     /*.draw_doors =*/          true, \
     /*.max_splits =*/          100 \
 }
-
-typedef enum {
-    RL_OK = 0,
-    RL_ErrorMemory,
-    RL_ErrorNullParameter,
-    RL_ErrorMapgenInvalidConfig
-} RL_Status;
 
 /* Generate map with recursive BSP split algorithm. This fills the map tiles with RL_TileRock before generation.
  *
@@ -273,15 +273,7 @@ RL_Status rl_mapgen_bsp(RL_Map map, RL_MapgenConfigBSP config);
 RL_Status rl_mapgen_bsp_recursive_split(RL_BSP *root, unsigned int min_split_width, unsigned int min_split_height, unsigned int max_splits);
 
 /* Populates rooms in map based on split BSP. Low level function used in rl_mapgen_bsp. */
-void rl_mapgen_bsp_generate_rooms(RL_BSP *node, RL_Map map, unsigned int room_min_width, unsigned int room_max_width, unsigned int room_min_height, unsigned int room_max_height, unsigned int room_padding);
-
-/* Connect map via corridors. It will connect siblings of the BSP graph depending on the connection_algorithm passed.
- * Can be used for to connect regions of different dungeon generation algorithms - split the BSP map into regions based
- * on what areas you want to connect with corridors. */
-RL_Status rl_mapgen_connect_corridors(RL_Map map, RL_BSP *root, bool draw_doors, RL_MapgenCorridorConnection connection_algorithm);
-
-/* Connect map point to another map point via a single L-shaped corridor. */
-RL_Status rl_mapgen_connect_corridor(RL_Map map, unsigned int from_x, unsigned int from_y, unsigned int to_x, unsigned int to_y, bool draw_doors, RL_MapgenCorridorConnection connection_algorithm);
+RL_Status rl_mapgen_bsp_generate_rooms(RL_BSP *node, RL_Map map, unsigned int room_min_width, unsigned int room_max_width, unsigned int room_min_height, unsigned int room_max_height, unsigned int room_padding);
 
 /* The config for BSP map generation - note that the dimensions *include* the walls on both sides, so the min room width
  * & height the library accepts is 3. */
@@ -309,17 +301,45 @@ typedef struct {
     /*.fill_border =*/              true \
 }
 
-/* Generate map with cellular automata. This clears out the previous tiles before generation. */
+/* Generate map with cellular automata. This fill in the tiles with Rock before generation.
+ *
+ * The procedure when generating the Automata-based map is:
+ *   rl_mapgen_automata_generate_rooms(..); // generates the cave-structure via cellular automata
+ *   rl_mapgen_connect_unconnected_rooms(..); // connects unconnected caves with corridors (if specified in config)
+ *   rl_mapgen_cull_unconnected_rooms(..); // culls unconnected caves & fills them with rock (if specified in config)
+ */
 RL_Status rl_mapgen_automata(RL_Map map, RL_MapgenConfigAutomata config);
 
-/* Same as above function, but constrains generation according to passed dimensions. */
-RL_Status rl_mapgen_automata_ex(RL_Map map, unsigned int x, unsigned int y, unsigned int width, unsigned int height,  const RL_MapgenConfigAutomata *config);
+/* Populates cave-like rooms in map based on dimensions. Low level function used in rl_mapgen_bsp. You'll probably want
+ * to connect corridors and/or cull unconnected rooms after.
+ *
+ * This fills in the region of the map with either rock or floor depending on chance_cell_initialized. If
+ * chance_cell_initialized is 0, nothing in the map is changed before generation.
+ */
+RL_Status rl_mapgen_automata_generate_rooms(RL_Map map, unsigned int offset_x, unsigned int offset_y, unsigned int width, unsigned int height,
+                                            unsigned int chance_cell_initialized, unsigned int birth_threshold, unsigned int survival_threshold,
+                                            unsigned int max_iterations, bool fill_border);
 
 /* Generate map with a random maze (via simplistic BFS). Tiles are carved with RL_TileCorridor. Fully connected. */
 RL_Status rl_mapgen_maze(RL_Map map);
 
 /* Generate map with a random maze (via simplistic BFS). Tiles are carved with RL_TileCorridor. Fully connected. */
 RL_Status rl_mapgen_maze_ex(RL_Map map, unsigned int x, unsigned int y, unsigned int width, unsigned int height);
+
+/* Connect rooms in map via corridors. It will connect siblings of the BSP graph depending on the connection_algorithm
+ * passed.  Can be used for to connect regions of different dungeon generation algorithms - split the BSP map into
+ * regions based on what areas you want to connect with corridors. */
+RL_Status rl_mapgen_connect_corridors(RL_Map map, RL_BSP *root, bool draw_doors, RL_MapgenCorridorConnection connection_algorithm);
+
+/* Connect map point to another map point via a single L-shaped corridor. */
+RL_Status rl_mapgen_connect_corridor(RL_Map map, unsigned int from_x, unsigned int from_y, unsigned int to_x, unsigned int to_y, bool draw_doors);
+
+/* Connect unconnected rooms in the graph via corridors. Uses floodfill algorithm to find unconnected rooms. Used in
+ * automata to connect after generating. */
+RL_Status rl_mapgen_connect_unconnected_rooms(RL_Map map, bool draw_doors);
+
+/* Cull/remove unconnected rooms - keeps the largest room and fills the rest with rock.  */
+RL_Status rl_mapgen_cull_unconnected_rooms(RL_Map map);
 
 /**
  * Generic map helper functions.
@@ -1291,7 +1311,7 @@ static void rl_mapgen_bsp_generate_room(RL_BSP *leaf, RL_Map map, unsigned int r
         }
     }
 }
-void rl_mapgen_bsp_generate_rooms(RL_BSP *node, RL_Map map, unsigned int room_min_width, unsigned int room_max_width, unsigned int room_min_height, unsigned int room_max_height, unsigned int room_padding)
+RL_Status rl_mapgen_bsp_generate_rooms(RL_BSP *node, RL_Map map, unsigned int room_min_width, unsigned int room_max_width, unsigned int room_min_height, unsigned int room_max_height, unsigned int room_padding)
 {
     RL_ASSERT(map.tiles != NULL);
     RL_ASSERT(room_min_width < room_max_width);
@@ -1300,24 +1320,28 @@ void rl_mapgen_bsp_generate_rooms(RL_BSP *node, RL_Map map, unsigned int room_mi
     RL_ASSERT(room_max_height + room_padding*2 < UINT_MAX);
     RL_ASSERT(room_min_width > 2 && room_min_height > 2); /* width of 2 can end up having rooms made of nothing but walls */
     RL_ASSERT(node != NULL);
-    if (node == NULL) return;
+    if (node == NULL) return RL_ErrorNullParameter;
     RL_ASSERT(room_min_width <= node->width);
     RL_ASSERT(room_min_height <= node->height);
-    if (map.tiles == NULL) return;
+    if (map.tiles == NULL) return RL_ErrorNullParameter;
     if (node && node->left) {
         if (rl_bsp_is_leaf(node->left)) {
             rl_mapgen_bsp_generate_room(node->left, map, room_min_width, room_max_width, room_min_height, room_max_height, room_padding);
         } else {
-            rl_mapgen_bsp_generate_rooms(node->left, map, room_min_width, room_max_width, room_min_height, room_max_height, room_padding);
+            RL_Status status = rl_mapgen_bsp_generate_rooms(node->left, map, room_min_width, room_max_width, room_min_height, room_max_height, room_padding);
+            if (status != RL_OK) return status;
         }
     }
     if (node && node->right) {
         if (rl_bsp_is_leaf(node->right)) {
             rl_mapgen_bsp_generate_room(node->right, map, room_min_width, room_max_width, room_min_height, room_max_height, room_padding);
         } else {
-            rl_mapgen_bsp_generate_rooms(node->right, map, room_min_width, room_max_width, room_min_height, room_max_height, room_padding);
+            RL_Status status = rl_mapgen_bsp_generate_rooms(node->right, map, room_min_width, room_max_width, room_min_height, room_max_height, room_padding);
+            if (status != RL_OK) return status;
         }
     }
+
+    return RL_OK;
 }
 
 RL_Status rl_mapgen_bsp(RL_Map map, RL_MapgenConfigBSP config)
@@ -1340,11 +1364,12 @@ RL_Status rl_mapgen_bsp(RL_Map map, RL_MapgenConfigBSP config)
 
     ret = rl_mapgen_bsp_recursive_split(root, config.room_max_width + config.room_padding*2, config.room_max_height + config.room_padding*2, config.max_splits);
     if (ret != RL_OK) return ret;
-    rl_mapgen_bsp_generate_rooms(root, map, config.room_min_width, config.room_max_width, config.room_min_height, config.room_max_height, config.room_padding);
+    ret = rl_mapgen_bsp_generate_rooms(root, map, config.room_min_width, config.room_max_width, config.room_min_height, config.room_max_height, config.room_padding);
+    if (ret != RL_OK) return ret;
     ret = rl_mapgen_connect_corridors(map, root, config.draw_doors, config.draw_corridors);
     if (ret != RL_OK) return ret;
 
-    /* if (config->use_secret_passages) { */
+    /* if (config.use_secret_passages) { */
         /* TODO connect secret passages */
     /* } */
 
@@ -1412,11 +1437,6 @@ unsigned int rl_mapgen_automata_alive_neighbors(const RL_Map map, int x, int y)
            rl_mapgen_automata_is_alive(map, x - 1, y - 1);
 }
 
-RL_Status rl_mapgen_automata(RL_Map map, RL_MapgenConfigAutomata config)
-{
-    return rl_mapgen_automata_ex(map, 0, 0, map.width, map.height, &config);
-}
-
 #if RL_ENABLE_PATHFINDING
 /* custom Dijkstra scorer function to prevent carving double wide doors when carving corridors */
 static inline float rl_mapgen_corridor_scorer(void *context, const RL_GraphNode *current, const RL_GraphNode *neighbor)
@@ -1428,9 +1448,13 @@ static inline float rl_mapgen_corridor_scorer(void *context, const RL_GraphNode 
     RL_Point start = current->point;
     RL_Point end = neighbor->point;
     float r = current->score + rl_distance_manhattan(start, end);
+    RL_ASSERT(map.width > 0 && map.height > 0 && map.tiles != NULL);
 
     if (rl_map_tile_is(map, end.x, end.y, RL_TileDoor)) {
         return r; /* doors are passable but count as "walls" - encourage passing through them */
+    }
+    if (end.x == 0 || end.y == 0 || end.x == map.width - 1 || end.y == map.height - 1) {
+        return r + 999; /* heavily discourage carving into edges of the map */
     }
     if (rl_map_is_corner_wall(map, end.x, end.y)) {
         return r + 99; /* discourage double wide corridors & double carving into walls */
@@ -1443,42 +1467,84 @@ static inline float rl_mapgen_corridor_scorer(void *context, const RL_GraphNode 
 }
 #endif
 
-RL_Status rl_mapgen_automata_ex(RL_Map map, unsigned int offset_x, unsigned int offset_y, unsigned int width, unsigned int height,  const RL_MapgenConfigAutomata *config)
+RL_Status rl_mapgen_automata(RL_Map map, RL_MapgenConfigAutomata config)
+{
+    RL_Status status;
+    status = rl_mapgen_automata_generate_rooms(map, 0, 0, map.width, map.height,
+                                               config.chance_cell_initialized,
+                                               config.birth_threshold,
+                                               config.survival_threshold,
+                                               config.max_iterations,
+                                               config.fill_border);
+    if (status != RL_OK) return status;
+
+    if (config.draw_corridors) {
+#if RL_ENABLE_PATHFINDING
+        status = rl_mapgen_connect_unconnected_rooms(map, false);
+        if (status != RL_OK) return status;
+#else
+        return RL_ErrorMapgenInvalidConfig;
+#endif
+    }
+    if (config.cull_unconnected) {
+#if RL_ENABLE_PATHFINDING
+        status = rl_mapgen_cull_unconnected_rooms(map);
+        if (status != RL_OK) return status;
+#else
+        return RL_ErrorMapgenInvalidConfig;
+#endif
+    }
+
+    return RL_OK;
+}
+
+RL_Status rl_mapgen_automata_generate_rooms(RL_Map map,
+                                            unsigned int offset_x,
+                                            unsigned int offset_y,
+                                            unsigned int width,
+                                            unsigned int height,
+                                            unsigned int chance_cell_initialized,
+                                            unsigned int birth_threshold,
+                                            unsigned int survival_threshold,
+                                            unsigned int max_iterations,
+                                            bool fill_border)
 {
     unsigned int i, x, y;
 
-    RL_ASSERT(map.tiles != NULL && config != NULL);
+    RL_ASSERT(map.tiles != NULL);
     RL_ASSERT(width > 0 && height > 0);
     RL_ASSERT(offset_x < width && offset_y < height);
     RL_ASSERT(offset_x < map.width && offset_y < map.height);
     RL_ASSERT(offset_x + width <= map.width && offset_y + height <= map.height);
-    RL_ASSERT(config->chance_cell_initialized > 0 && config->chance_cell_initialized <= 100);
+    RL_ASSERT(chance_cell_initialized <= 100);
 
-    if (map.tiles == NULL || config == NULL) {
+    if (map.tiles == NULL) {
         return RL_ErrorNullParameter;
     }
 
     /* initialize map */
-    for (x=offset_x; x<offset_x + width; ++x) {
-        for (y=offset_y; y<offset_y + height; ++y) {
-            unsigned int r = RL_RNG_F(1, 100);
-            if (r <= config->chance_cell_initialized) {
-                map.tiles[x + y*map.width] = RL_TileRock;
-            } else {
-                map.tiles[x + y*map.width] = RL_TileRoom;
+    if (chance_cell_initialized > 0) {
+        for (x=offset_x; x<offset_x + width; ++x) {
+            for (y=offset_y; y<offset_y + height; ++y) {
+                unsigned int r = RL_RNG_F(1, 100);
+                if (r <= chance_cell_initialized) {
+                    map.tiles[x + y*map.width] = RL_TileRock;
+                } else {
+                    map.tiles[x + y*map.width] = RL_TileRoom;
+                }
             }
         }
     }
 
     /* cellular automata algorithm */
-    for (i=config->max_iterations; i>0; i--) {
+    for (i=max_iterations; i>0; i--) {
         for (x=offset_x; x<offset_x + width; ++x) {
             for (y=offset_y; y<offset_y + height; ++y) {
                 unsigned int alive_neighbors = rl_mapgen_automata_alive_neighbors(map, x, y);
-                if (!rl_mapgen_automata_is_alive(map, x, y) && alive_neighbors >= config->birth_threshold) {
+                if (!rl_mapgen_automata_is_alive(map, x, y) && alive_neighbors >= birth_threshold) {
                     /* cell isn't alive but has enough alive neighbors to be born */
                     map.tiles[x + y*map.width] = RL_TileRock;
-                } else if (rl_mapgen_automata_is_alive(map, x, y) && alive_neighbors >= config->survival_threshold) {
+                } else if (rl_mapgen_automata_is_alive(map, x, y) && alive_neighbors >= survival_threshold) {
                     /* cell is alive and has enough alive neighbors to survive */
                 } else {
                     /* cell dies */
@@ -1488,70 +1554,7 @@ RL_Status rl_mapgen_automata_ex(RL_Map map, unsigned int offset_x, unsigned int 
         }
     }
 
-    if (config->draw_corridors) {
-#if RL_ENABLE_PATHFINDING
-        /* A very crude algorithm for connecting corridors within the cellular automata. This creates a heap of Dijkstra
-         * graphs, containing each floodfilled region of the map. Then, it goes through each of these regions and
-         * connects it to another random region. This is pretty slow and can be optimized in the future, but works for
-         * now. */
-
-        RL_Graph floodfill = rl_graph_create_from_map(map, NULL);
-        /* fill floodfills array with a floodfill of each connected space */
-        bool is_scored = false;
-        for (x=offset_x; x<offset_x + width; ++x) {
-            for (y=offset_y; y<offset_y + height; ++y) {
-                if (RL_PASSABLE_F(map, x, y)) {
-                    rl_graph_score(floodfill, map, rl_point(x, y), NULL);
-                    is_scored = true;
-                }
-                if (is_scored) break;
-            }
-            if (is_scored) break;
-        }
-        /* connect each floodfill with another random one */
-        if (is_scored) {
-            for (x=offset_x; x<offset_x + width; ++x) {
-                for (y=offset_y; y<offset_y + height; ++y) {
-                    if (RL_PASSABLE_F(map, x, y) && !rl_graph_is_scored(floodfill, rl_point(x, y))) {
-                        /* found a node to connect to floodfill */
-                        RL_Point dig_start, dig_end;
-
-                        /* find start & end point for corridor pathfinding */
-                        /* TODO could make this smarter by finding closest tile to point */
-                        for (size_t node_idx=0; node_idx<floodfill.length; ++node_idx) {
-                            RL_GraphNode *n = &floodfill.nodes[node_idx];
-                            RL_ASSERT(n);
-                            if (n->score < FLT_MAX && RL_PASSABLE_F(map, n->point.x, n->point.y)) {
-                                dig_start = n->point;
-                                break;
-                            }
-                        }
-                        RL_ASSERT(RL_PASSABLE_F(map, dig_start.x, dig_start.y));
-                        dig_end = rl_point(x, y);
-                        floodfill.neighbors = rl_graph_neighbors_cardinal;
-                        rl_graph_reset(floodfill);
-                        rl_graph_score(floodfill, map, dig_end, rl_mapgen_corridor_scorer);
-                        RL_Path *path = rl_path_create_from_graph(floodfill, map, dig_start);
-                        RL_ASSERT(path != NULL && path->next != NULL);
-                        while ((path = rl_path_walk(path))) {
-                            if (rl_map_tile_is(map, path->point.x, path->point.y, RL_TileRock)) {
-                                map.tiles[(size_t)floor(path->point.x) + (size_t)floor(path->point.y) * map.width] = RL_TileCorridor;
-                            }
-                        }
-
-                        /* update floodfill graph */
-                        floodfill.neighbors = NULL;
-                        rl_graph_score(floodfill, map, dig_start, NULL);
-                    }
-                }
-            }
-        }
-        rl_graph_destroy(floodfill);
-#else
-        return RL_ErrorMapgenInvalidConfig;
-#endif
-    }
-    if (config->fill_border) {
+    if (fill_border) {
         x = 0;
         for (y=offset_y; y<height; ++y) map.tiles[x + y*map.width] = RL_TileRock;
         x = width - 1;
@@ -1560,23 +1563,6 @@ RL_Status rl_mapgen_automata_ex(RL_Map map, unsigned int offset_x, unsigned int 
         for (x=offset_x; x<width; ++x) map.tiles[x + y*map.width] = RL_TileRock;
         y = height - 1;
         for (x=offset_x; x<width; ++x) map.tiles[x + y*map.width] = RL_TileRock;
-    }
-    if (config->cull_unconnected) {
-#if RL_ENABLE_PATHFINDING
-        RL_Graph floodfill = rl_graph_floodfill_largest_area(map);
-        if (floodfill.nodes != NULL) {
-            for (x=offset_x; x<offset_x + width; ++x) {
-                for (y=offset_y; y<offset_y + height; ++y) {
-                    if (!rl_graph_is_scored(floodfill, rl_point(x, y))) {
-                        map.tiles[x + y*map.width] = RL_TileRock;
-                    }
-                }
-            }
-            rl_graph_destroy(floodfill);
-        }
-#else
-        return RL_ErrorMapgenInvalidConfig;
-#endif
     }
 
     return RL_OK;
@@ -1658,7 +1644,8 @@ RL_Status rl_mapgen_maze_ex(RL_Map map, unsigned int offset_x, unsigned int offs
     }
 
     /* choose random starting tile */
-    /* TODO use connect_corridors function to do this so we can connect different parts of e.g. automata & bsp */
+    /* TODO use connect_corridors algorithm to do maze generation? Then we can connect different parts of e.g. automata
+     * & bsp with maze-like corridors... currently, the user has to generate the maze first */
     x = RL_RNG_F(offset_x, offset_x + width - 1);
     y = RL_RNG_F(offset_y, offset_y + height - 1);
     map.tiles[x + y*map.width] = RL_TileCorridor;
@@ -1825,7 +1812,7 @@ RL_Status rl_mapgen_connect_corridors(RL_Map map, RL_BSP *root, bool draw_doors,
                 RL_ASSERT(!(from_x == dest_x && from_y == dest_y));
 
                 /* connect corridors */
-                status = rl_mapgen_connect_corridor(map, from_x, from_y, dest_x, dest_y, draw_doors, connection_algorithm);
+                status = rl_mapgen_connect_corridor(map, from_x, from_y, dest_x, dest_y, draw_doors);
                 if (status != RL_OK) return status;
                 status = rl_mapgen_connect_corridors(map, node, draw_doors, connection_algorithm);
                 if (status != RL_OK) return status;
@@ -1877,7 +1864,7 @@ RL_Status rl_mapgen_connect_corridors(RL_Map map, RL_BSP *root, bool draw_doors,
                     RL_ASSERT(!(from_x == dest_x && from_y == dest_y));
 
                     /* connect corridors */
-                    status = rl_mapgen_connect_corridor(map, from_x, from_y, dest_x, dest_y, draw_doors, connection_algorithm);
+                    status = rl_mapgen_connect_corridor(map, from_x, from_y, dest_x, dest_y, draw_doors);
                     if (status != RL_OK) return status;
 
                     /* find start node for next loop iteration */
@@ -1888,66 +1875,103 @@ RL_Status rl_mapgen_connect_corridors(RL_Map map, RL_BSP *root, bool draw_doors,
             break;
     }
 
-#if RL_ENABLE_PATHFINDING == 1
-    /* cull unconnected tiles */
+    return RL_OK;
+}
+
+/* TODO probably want a define for enabling/disabling Dijkstra corridors - should also improve our simple algorithm */
+RL_Status rl_mapgen_connect_corridor(RL_Map map, unsigned int from_x, unsigned int from_y, unsigned int dest_x, unsigned int dest_y, bool draw_doors)
+{
+    RL_ASSERT(map.tiles != NULL);
+    if (map.tiles == NULL) return RL_ErrorNullParameter;
+
+#if RL_ENABLE_PATHFINDING
+    RL_Graph graph = rl_graph_create_from_map(map, NULL);
+    if (graph.nodes == NULL) return RL_ErrorMemory;
+    rl_mapgen_connect_corridor_with_pathfinding(map, from_x, from_y, dest_x, dest_y, draw_doors, graph);
+    rl_graph_destroy(graph);
+#else
+    rl_mapgen_connect_corridor_simple(map, from_x, from_y, dest_x, dest_y, draw_doors);
+#endif
+
+    return RL_OK;
+}
+
+#if RL_ENABLE_PATHFINDING
+RL_Status rl_mapgen_connect_unconnected_rooms(RL_Map map, bool draw_doors)
+{
+    RL_ASSERT(map.tiles != NULL);
+    if (map.tiles == NULL) return RL_ErrorNullParameter;
+
+    RL_Graph floodfill = rl_graph_create_from_map(map, NULL);
+    /* fill floodfills array with a floodfill of each connected space */
+    bool is_scored = false;
+    unsigned int x, y;
+    for (x=0; x < map.width; ++x) {
+        for (y=0; y < map.height; ++y) {
+            if (RL_PASSABLE_F(map, x, y)) {
+                rl_graph_score(floodfill, map, rl_point(x, y), NULL);
+                is_scored = true;
+            }
+            if (is_scored) break;
+        }
+        if (is_scored) break;
+    }
+    /* connect each floodfill with another random one */
+    if (is_scored) {
+        for (x=0; x < map.width; ++x) {
+            for (y=0; y < map.height; ++y) {
+                if (RL_PASSABLE_F(map, x, y) && !rl_graph_is_scored(floodfill, rl_point(x, y))) {
+                    /* found a node to connect to floodfill */
+                    RL_Point dig_start;
+
+                    /* find start & end point for corridor pathfinding */
+                    /* TODO could make this smarter by finding closest tile to point */
+                    for (size_t node_idx=0; node_idx<floodfill.length; ++node_idx) {
+                        RL_GraphNode *n = &floodfill.nodes[node_idx];
+                        RL_ASSERT(n);
+                        if (n->score < FLT_MAX && RL_PASSABLE_F(map, n->point.x, n->point.y)) {
+                            dig_start = n->point;
+                            break;
+                        }
+                    }
+                    RL_ASSERT(RL_PASSABLE_F(map, dig_start.x, dig_start.y));
+
+                    RL_Status status = rl_mapgen_connect_corridor(map, dig_start.x, dig_start.y, x, y, draw_doors);
+                    if (status != RL_OK) return status;
+
+                    /* update floodfill with newly connected room */
+                    rl_graph_score(floodfill, map, dig_start, NULL);
+                }
+            }
+        }
+    }
+    rl_graph_destroy(floodfill);
+
+    return RL_OK;
+}
+
+RL_Status rl_mapgen_cull_unconnected_rooms(RL_Map map)
+{
+    unsigned int x, y;
+
+    RL_ASSERT(map.tiles != NULL);
+    if (map.tiles == NULL) return RL_ErrorNullParameter;
     RL_Graph floodfill = rl_graph_floodfill_largest_area(map);
+    if (floodfill.nodes == NULL) return RL_ErrorMemory;
     if (floodfill.nodes != NULL) {
-        for (size_t x=0; x < map.width; ++x) {
-            for (size_t y=0; y < map.height; ++y) {
-                if (floodfill.nodes[x + y*map.width].score == FLT_MAX) {
-                    /* set unreachable tiles to rock */
+        for (x=0; x < map.width; ++x) {
+            for (y=0; y < map.height; ++y) {
+                if (!rl_graph_is_scored(floodfill, rl_point(x, y))) {
                     map.tiles[x + y*map.width] = RL_TileRock;
                 }
             }
         }
         rl_graph_destroy(floodfill);
     }
-#endif
 
     return RL_OK;
 }
-
-RL_Status rl_mapgen_connect_corridor(RL_Map map, unsigned int from_x, unsigned int from_y, unsigned int dest_x, unsigned int dest_y, bool draw_doors, RL_MapgenCorridorConnection connection_algorithm)
-{
-    switch (connection_algorithm) {
-        case RL_ConnectNone:
-            RL_UNUSED(map);
-            RL_UNUSED(draw_doors);
-            RL_UNUSED(from_x);
-            RL_UNUSED(from_y);
-            RL_UNUSED(dest_x);
-            RL_UNUSED(dest_y);
-            RL_UNUSED(draw_doors);
-            RL_UNUSED(connection_algorithm);
-            break;
-        case RL_ConnectBSP:
-            {
-#if RL_ENABLE_PATHFINDING
-                RL_Graph graph = rl_graph_create_from_map(map, NULL);
-                rl_mapgen_connect_corridor_with_pathfinding(map, from_x, from_y, dest_x, dest_y, draw_doors, graph);
-                rl_graph_destroy(graph);
-#else
-                rl_mapgen_connect_corridor_simple(map, from_x, from_y, dest_x, dest_y, draw_doors);
 #endif
-            }
-            break;
-        case RL_ConnectRandomly:
-            {
-#if RL_ENABLE_PATHFINDING
-                RL_Graph graph = rl_graph_create_from_map(map, NULL);
-                rl_mapgen_connect_corridor_with_pathfinding(map, from_x, from_y, dest_x, dest_y, draw_doors, graph);
-                rl_graph_destroy(graph);
-#else
-                rl_mapgen_connect_corridor_simple(map, from_x, from_y, dest_x, dest_y, draw_doors);
-#endif
-            }
-            break;
-        default:
-            return RL_ErrorMapgenInvalidConfig;
-    }
-
-    return RL_OK;
-}
 
 /**
  * Heap functions for pathfinding

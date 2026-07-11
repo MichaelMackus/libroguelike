@@ -49,7 +49,7 @@ int main(int argc, char **argv)
     for (unsigned int x = 0; x < map.width; ++x) {
         for (unsigned int y = 0; y < map.height; ++y) {
             if (!rl_map_tile_is(map, x, y, RL_TileRock) && floodfill.nodes[x + y*map.width].score == FLT_MAX) {
-                assert("ERROR: Unreachable tile found!" == 0);
+                assert(false && "ERROR: Unreachable tile found!");
             }
         }
     }
@@ -73,7 +73,7 @@ int main(int argc, char **argv)
     for (unsigned int x = 0; x < map.width; ++x) {
         for (unsigned int y = 0; y < map.height; ++y) {
             if (!rl_map_tile_is(map, x, y, RL_TileRock) && floodfill.nodes[x + y*map.width].score == FLT_MAX) {
-                assert("ERROR: Unreachable tile found!" == 0);
+                assert(false && "ERROR: Unreachable tile found!");
             }
         }
     }
