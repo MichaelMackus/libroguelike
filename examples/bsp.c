@@ -70,18 +70,16 @@ int main(int argc, char **argv)
         .room_max_width = 8,
         .room_min_height = 4,
         .room_max_height = 8,
-        .room_padding = 0,
+        .room_padding = 3,
         .draw_corridors = RL_ConnectBSP,
         .draw_doors = true,
         .max_splits = 3,
     };
     RL_BSP *bsp = rl_bsp_create(WIDTH, HEIGHT);
-    if (rl_mapgen_bsp_ex(map, bsp, &config) != RL_OK) {
-        fprintf(stderr, "Error while generating map!\n");
-        return 1;
-    }
-
-    printf("Leaf count: %zu\n", rl_bsp_leaf_count(bsp));
+    RL_Status status;
+    assert(bsp != NULL);
+    status = rl_mapgen_bsp_recursive_split(bsp, config.room_min_width + config.room_padding*2, config.room_min_height + config.room_padding*2, config.max_splits);
+    assert(status == RL_OK);
 
     // render the layout of the BSP first for debugging
     render_bsp(bsp);
@@ -94,6 +92,12 @@ int main(int argc, char **argv)
         }
         printf("\n");
     }
+
+    rl_mapgen_bsp_generate_rooms(bsp, map, config.room_min_width, config.room_max_width, config.room_min_height, config.room_max_height, config.room_padding);
+    status = rl_mapgen_connect_corridors(map, bsp, config.draw_doors, config.draw_corridors);
+    assert(status == RL_OK);
+
+    printf("Leaf count: %zu\n", rl_bsp_leaf_count(bsp));
 
     // render the map
     for (y = 0; y < HEIGHT; ++y) {

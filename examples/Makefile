@@ -21,6 +21,8 @@ c89: c89.c ../roguelike.h
 	$(CC) $(CFLAGS) -std=c89 -o $@ $< $(LIBFLAGS) $(LIBFLAGS_CURSES)
 test-cpp: test.cpp ../roguelike.h
 	$(CC) -lm -Wno-narrowing -o $@ $< $(LIBFLAGS)
+timer: timer.c ../roguelike.h
+	$(CC) -std=gnu99 -lm -Wno-narrowing -o $@ $< $(LIBFLAGS)
 %: %.c ../roguelike.h
 	$(CC) $(CFLAGS) -o $@ $< $(LIBFLAGS)
 

@@ -42,16 +42,15 @@ int main(void)
     RL_Map map = { .width = WIDTH, .height = HEIGHT, .tiles = map_str };
     RL_FOV fov = { .width = WIDTH, .height = HEIGHT, .visibility =  visibility };
 
-    // initialize curses
-    initscr();
-    noecho();
-    keypad(stdscr, true);
-    curs_set(0);
-
     // generate town map
     RL_MapgenConfigBSP config = RL_MAPGEN_BSP_DEFAULTS;
     RL_BSP bsp = { .width = WIDTH, .height = HEIGHT };
-    rl_mapgen_bsp_ex(map, &bsp, &config); // ex is used since rl_mapgen will reset our tiles to RL_TileRock
+    RL_Status status = rl_mapgen_bsp_recursive_split(&bsp, config.room_min_width + config.room_padding*2, config.room_min_height + config.room_padding*2, config.max_splits);
+    assert(status == RL_OK);
+    rl_mapgen_bsp_generate_rooms(&bsp, map, config.room_min_width, config.room_max_width, config.room_min_height, config.room_max_height, config.room_padding);
+
+    status = rl_mapgen_connect_corridors(map, &bsp, config.draw_doors, config.draw_corridors);
+    assert(status == RL_OK);
     // find random corridor tile to place downstair & player
     unsigned int downstair_x = WIDTH, downstair_y = HEIGHT;
     while (!(rl_map_tile_is(map, downstair_x, downstair_y, RL_TileCorridor))) {
@@ -63,6 +62,12 @@ int main(void)
         player_x = rl_rng_generate(0, WIDTH - 1);
         player_y = rl_rng_generate(0, HEIGHT - 1);
     }
+
+    // initialize curses
+    initscr();
+    noecho();
+    keypad(stdscr, true);
+    curs_set(0);
 
     // game loop
     bool quit = 0;
@@ -130,10 +135,12 @@ int main(void)
             rl_bsp_destroy(bsp.left);
             rl_bsp_destroy(bsp.right);
             bsp.left = bsp.right = NULL;
-            if (rl_mapgen_bsp_ex(map, &bsp, &config) != RL_OK) {
-                fprintf(stderr, "Error while generating map!\n");
-                return 1;
-            }
+            // generate BSP rooms first
+            RL_Status status = rl_mapgen_bsp_recursive_split(&bsp, config.room_min_width + config.room_padding*2, config.room_min_height + config.room_padding*2, config.max_splits);
+            assert(status == RL_OK);
+            rl_mapgen_bsp_generate_rooms(&bsp, map, config.room_min_width, config.room_max_width, config.room_min_height, config.room_max_height, config.room_padding);
+            status = rl_mapgen_connect_corridors(map, &bsp, config.draw_doors, config.draw_corridors);
+            assert(status == RL_OK);
             // find passable tile for player & downstair
             player_x = player_y = downstair_x = downstair_y -1;
             while (!(rl_map_tile_is(map, downstair_x, downstair_y, RL_TileRoom))) {
