@@ -2232,7 +2232,7 @@ RL_Status rl_rng_map_point(RL_Map map, RL_Byte t, unsigned int *dx, unsigned int
 
 RL_Status rl_rng_map_passable(RL_Map map, unsigned int *x, unsigned int *y)
 {
-    return rl_rng_map_point_matching(map, rl_map_is_passable, x, y);
+    return rl_rng_map_point_matching(map, RL_PASSABLE_F, x, y);
 }
 
 RL_Status rl_rng_map_room(RL_Map map, RL_BSP *bsp, unsigned int *x, unsigned int *y)
