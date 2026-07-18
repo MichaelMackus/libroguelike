@@ -29,9 +29,18 @@ static RL_FOV fov = { .width = WIDTH, .height = HEIGHT, .visibility = (RL_Byte[W
 static RL_Point player;
 static RL_Point downstair;
 
+// ensure downstair tile not on player
+bool tile_is_valid_stair(const RL_Map map, unsigned int x, unsigned int y)
+{
+    return rl_map_tile_is(map, x, y, RL_TileRoom) && (x != player.x || y != player.y);
+}
+
 // generate a new map
 void generate_map(void)
 {
+    unsigned int x, y;
+    RL_Status ret;
+
     if (rl_rng_generate(0, 1)) {
         if (rl_mapgen_bsp(map, RL_MAPGEN_BSP_DEFAULTS) != RL_OK) {
             endwin();
@@ -50,16 +59,24 @@ void generate_map(void)
     memset(fov.visibility, RL_TileCannotSee, sizeof(RL_Byte) * WIDTH * HEIGHT);
 
     // generate a random starting tile for player
-    while (!rl_map_tile_is(map, player.x, player.y, RL_TileRoom)) {
-        player.x = rl_rng_generate(0, WIDTH - 1);
-        player.y = rl_rng_generate(0, HEIGHT - 1);
+    ret = rl_rng_map_point(map, RL_TileRoom, &x, &y);
+    if (ret != RL_OK) {
+        endwin();
+        fprintf(stderr, "Error %s - cannot find starting tile for player!\n", rl_status_str(ret));
+        exit(1);
     }
+    player.x = x;
+    player.y = y;
 
     // generate a random downstair tile
-    while (!rl_map_tile_is(map, downstair.x, downstair.y, RL_TileRoom) || (downstair.x == player.x && downstair.y == player.y)) {
-        downstair.x = rl_rng_generate(0, WIDTH - 1);
-        downstair.y = rl_rng_generate(0, HEIGHT - 1);
+    ret = rl_rng_map_point_matching(map, tile_is_valid_stair, &x, &y);
+    if (ret != RL_OK) {
+        endwin();
+        fprintf(stderr, "Error %s - cannot find starting tile for downstair!\n", rl_status_str(ret));
+        exit(1);
     }
+    downstair.x = x;
+    downstair.y = y;
 }
 
 int main(int argc, char **argv)
