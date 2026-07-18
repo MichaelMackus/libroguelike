@@ -122,7 +122,7 @@
  *  RL_HEX_FLAT_TOP                   For hex grid pathfinding - set to 1 if you use flat top hexes, otherwise 0 for pointy top hexes.
  *  RL_HEX_ODD_OFFSET                 For hex grid pathfinding - set to 1 if you offset every *odd* row, otherwise set to 0 if you offset every *even* row.
  *  RL_FOV_SYMMETRIC                  Set this to 0 to disable symmetric FOV (defaults to 1)
- *  RL_MAX_RECURSION                  Maximum recursion (defaults to 100). This is used in FOV to limit recursion when fov_radius is large or -1 (unlimited).
+ *  RL_MAX_RECURSION                  Maximum recursion (defaults to 100). This is used in rl_rng_map_* and FOV to limit recursion when fov_radius is large or -1 (unlimited).
  *  RL_MAPGEN_BSP_RANDOMISE_ROOM_LOC  Set this to 0 to disable randomizing room locations within bsp (used in rl_mapgen_bsp - defaults to 1)
  *  RL_ENABLE_PATHFINDING             Set this to 0 to disable pathfinding functionality (defaults to 1)
  *  RL_ENABLE_FOV                     Set this to 0 to disable field of view functionality (defaults to 1)
@@ -134,7 +134,7 @@
  *  RL_OPAQUE_F                       Set this to your default opaque function (defaults to rl_map_is_opaque).
  *  RL_WALL_F                         Set this to your default is_wall function (defaults to rl_map_is_wall).
  *  RL_FOV_DISTANCE_F                 Set this to your default FOV distance function (defaults to rl_distance_euclidian).
- *  RL_RNG_F                          Set this to your default RNG generation function (defaults to rl_rng_generate).
+ *  RL_RNG_F                          Set this to your default RNG generation function (defaults to rl_rng_generate). Parameters are expected to be inclusive.
  *  RL_ASSERT                         Define this to override the assert function used by the library (defaults to "assert")
  *  RL_MALLOC                         Define this to override the malloc function used by the library (defaults to "malloc")
  *  RL_CALLOC                         Define this to override the calloc function used by the library (defaults to "calloc")
@@ -213,8 +213,16 @@ typedef enum {
     RL_OK = 0,
     RL_ErrorMemory,
     RL_ErrorNullParameter,
-    RL_ErrorMapgenInvalidConfig
+    RL_ErrorInvalidParameter,
+    RL_ErrorMapgenInvalidConfig,
+    RL_ErrorNotFound,
+    RL_ErrorRecursion
 } RL_Status;
+
+/**
+ * Returns string representation of RL_Status
+ */
+const char *rl_status_str(RL_Status status);
 
 /**
  * Random map generation
@@ -707,13 +715,13 @@ typedef void (*RL_MarkAsVisibleFun)(unsigned int x, unsigned int y, void *contex
  * this is limited by RL_MAX_RECURSION).
  *
  * Note that this sets previously visible tiles to RL_TileSeen. */
-void rl_fov_calculate(RL_FOV fov, const RL_Map map, unsigned int x, unsigned int y, int fov_radius);
+RL_Status rl_fov_calculate(RL_FOV fov, const RL_Map map, unsigned int x, unsigned int y, int fov_radius);
 
 /* Calculate FOV using simple shadowcasting algorithm. Set fov_radius to a negative value to have unlimited FOV (note
  * this is limited by RL_MAX_RECURSION).
  *
  * Generic version of above function. */
-void rl_fov_calculate_ex(void *context, unsigned int x, unsigned int y, RL_IsInRangeFun in_range_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f);
+RL_Status rl_fov_calculate_ex(void *context, unsigned int x, unsigned int y, RL_IsInRangeFun in_range_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f);
 
 /* Checks if a point is visible within FOV. Make sure to call rl_fov_calculate first. */
 bool rl_fov_is_visible(const RL_FOV map, unsigned int x, unsigned int y);
@@ -727,6 +735,22 @@ bool rl_fov_is_seen(const RL_FOV map, unsigned int x, unsigned int y);
 
 /* Default implementation of RNG using standard library. */
 unsigned int rl_rng_generate(unsigned int min, unsigned int max);
+
+/* Return a random point for a specific tile within the map */
+/* Returns RL_ErrorNotFound if tile not in map */
+RL_Status rl_rng_map_point(RL_Map map, RL_Byte t, unsigned int *x, unsigned int *y);
+
+/* Return a random point matching the passed function */
+/* Returns RL_ErrorNotFound if tile not in map */
+RL_Status rl_rng_map_point_matching(RL_Map map, bool (*f)(const RL_Map map, unsigned int x, unsigned int y), unsigned int *x, unsigned int *y);
+
+/* Return a random passable point for a specific tile within the map */
+/* Returns RL_ErrorNotFound if tile not in map */
+RL_Status rl_rng_map_passable(RL_Map map, unsigned int *x, unsigned int *y);
+
+/* Return center point within a random room in the BSP */
+/* Returns RL_ErrorNotFound if tile not in map */
+RL_Status rl_rng_map_room(RL_Map map, RL_BSP *bsp, unsigned int *x, unsigned int *y);
 
 /**
  * Saving & Loading helper functions - to use these make sure to open the file beforehand in binary mode.
@@ -834,6 +858,27 @@ bool rl_file_load_fov(RL_FOV *data, void *file);
 #include <float.h>
 #include <math.h>
 #endif
+
+const char *rl_status_str(RL_Status status)
+{
+    switch (status) {
+        case RL_OK:
+            return "RL_OK";
+        case RL_ErrorMemory:
+            return "RL_ErrorMemory";
+        case RL_ErrorNullParameter:
+            return "RL_ErrorNullParameter";
+        case RL_ErrorInvalidParameter:
+            return "RL_ErrorInvalidParameter";
+        case RL_ErrorMapgenInvalidConfig:
+            return "RL_ErrorMapgenInvalidConfig";
+        case RL_ErrorNotFound:
+            return "RL_ErrorNotFound";
+        case RL_ErrorRecursion:
+            return "RL_ErrorRecursion";
+    }
+    RL_ASSERT(false && "Unreachable");
+}
 
 RL_Map rl_map_create(unsigned int width, unsigned int height)
 {
@@ -1378,7 +1423,7 @@ RL_Status rl_mapgen_bsp(RL_Map map, RL_MapgenConfigBSP config)
     return RL_OK;
 }
 
-/* find the room tile within BSP */
+/* find the middle room tile within BSP */
 /* TODO need to change this to find the *actual* room (e.g. what if the user provides a map filled with "."?) */
 bool rl_bsp_find_room(RL_Map map, RL_BSP *leaf, unsigned int *dx, unsigned int *dy)
 {
@@ -2115,6 +2160,102 @@ void *rl_heap_peek(RL_Heap *h)
         return NULL;
     }
 }
+
+RL_Status rl_rng_map_point_matching(RL_Map map, bool (*f)(const RL_Map map, unsigned int x, unsigned int y), unsigned int *dx, unsigned int *dy)
+{
+    unsigned int count, x, y;
+
+    RL_ASSERT(map.tiles != NULL);
+    if (map.tiles == NULL) {
+        return RL_ErrorNullParameter;
+    }
+    RL_ASSERT(dx != NULL && dy != NULL);
+    if (dx == NULL || dy == NULL) {
+        return RL_ErrorNullParameter;
+    }
+
+    /* simple reservoir sampling algorithm (k == 1) */
+    count = 0;
+    for (x=0; x<map.width; x++) {
+        for (y=0; y<map.height; y++) {
+            if (f(map, x, y)) {
+                count++;
+                if (RL_RNG_F(0, count - 1) == 0) {
+                    *dx = x;
+                    *dy = y;
+                }
+            }
+        }
+    }
+
+    return count > 0 ? RL_OK : RL_ErrorNotFound;
+}
+
+RL_Status rl_rng_map_point(RL_Map map, RL_Byte t, unsigned int *dx, unsigned int *dy)
+{
+    unsigned int count, x, y;
+
+    RL_ASSERT(map.tiles != NULL);
+    if (map.tiles == NULL) {
+        return RL_ErrorNullParameter;
+    }
+    RL_ASSERT(dx != NULL && dy != NULL);
+    if (dx == NULL || dy == NULL) {
+        return RL_ErrorNullParameter;
+    }
+
+    /* simple reservoir sampling algorithm (k == 1) */
+    count = 0;
+    for (x=0; x<map.width; x++) {
+        for (y=0; y<map.height; y++) {
+            if (rl_map_tile_is(map, x, y, t)) {
+                count++;
+                if (RL_RNG_F(0, count - 1) == 0) {
+                    *dx = x;
+                    *dy = y;
+                }
+            }
+        }
+    }
+
+    return count > 0 ? RL_OK : RL_ErrorNotFound;
+}
+
+RL_Status rl_rng_map_passable(RL_Map map, unsigned int *x, unsigned int *y)
+{
+    return rl_rng_map_point_matching(map, rl_map_is_passable, x, y);
+}
+
+RL_Status rl_rng_map_room(RL_Map map, RL_BSP *bsp, unsigned int *x, unsigned int *y)
+{
+    unsigned int r, i;
+    size_t count;
+    RL_BSP *leaf;
+
+    RL_ASSERT(bsp != NULL && map.tiles != NULL && x != NULL && y != NULL);
+    if (bsp == NULL || map.tiles == NULL || x == NULL || y == NULL) return RL_ErrorNullParameter;
+
+    count = rl_bsp_leaf_count(bsp);
+    RL_ASSERT(count > 0);
+
+    /* find the first leaf */
+    leaf = bsp;
+    while (leaf->left != NULL) leaf = leaf->left;
+
+    r = rl_rng_generate(0, count - 1);
+    for (i=0; i<r; i++) {
+        leaf = rl_bsp_next_leaf(leaf);
+        RL_ASSERT(leaf != NULL);
+    }
+    RL_ASSERT(leaf != NULL);
+
+    if (!rl_bsp_find_room(map, leaf, x, y)) {
+        return RL_ErrorNotFound;
+    }
+
+    return RL_OK;
+}
+
 
 #if RL_ENABLE_PATHFINDING
 /* simplified distance for side by side nodes */
@@ -2872,7 +3013,7 @@ typedef struct {
 
 /* adapted from: https://www.adammil.net/blog/v125_Roguelike_Vision_Algorithms.html#shadowcode (public domain) */
 /* also see: https://www.roguebasin.com/index.php/FOV_using_recursive_shadowcasting */
-void rl_fov_calculate_recursive(void *map, unsigned int origin_x, unsigned int origin_y, RL_IsInRangeFun in_range_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f, unsigned int octant, float original_x, RL_Slope top, RL_Slope bottom)
+RL_Status rl_fov_calculate_recursive(void *map, unsigned int origin_x, unsigned int origin_y, RL_IsInRangeFun in_range_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f, unsigned int octant, float original_x, RL_Slope top, RL_Slope bottom)
 {
     int x;
     RL_ASSERT(in_range_f);
@@ -2914,7 +3055,7 @@ void rl_fov_calculate_recursive(void *map, unsigned int origin_x, unsigned int o
             }
 
             if (x == original_x && !inRange) {
-                return;
+                return RL_OK;
             }
 
             isOpaque = !inRange || opaque_f(tx, ty, map);
@@ -2942,6 +3083,8 @@ void rl_fov_calculate_recursive(void *map, unsigned int origin_x, unsigned int o
 
         if(wasOpaque != 0) break; /* if the column ended in a clear tile, continue processing the current sector */
     }
+
+    return RL_ErrorRecursion;
 }
 
 struct RL_FOVMap {
@@ -2986,15 +3129,15 @@ bool rl_fovmap_in_range_f(unsigned int x, unsigned int y, void *context)
 #endif
 }
 
-void rl_fov_calculate(RL_FOV fov, const RL_Map map, unsigned int x, unsigned int y, int fov_radius)
+RL_Status rl_fov_calculate(RL_FOV fov, const RL_Map map, unsigned int x, unsigned int y, int fov_radius)
 {
     struct RL_FOVMap fovmap;
     unsigned int cur_x, cur_y;
     if (!rl_map_in_bounds(map, x, y)) {
-        return;
+        return RL_ErrorInvalidParameter;
     }
     if (x >= fov.width || y >= fov.height) {
-        return;
+        return RL_ErrorInvalidParameter;
     }
 
     /* set previously visible tiles to seen */
@@ -3010,18 +3153,23 @@ void rl_fov_calculate(RL_FOV fov, const RL_Map map, unsigned int x, unsigned int
     fovmap.origin_x = x;
     fovmap.origin_y = y;
     fovmap.fov_radius = fov_radius;
-    rl_fov_calculate_ex(&fovmap, x, y, rl_fovmap_in_range_f, rl_fovmap_opaque_f, rl_fovmap_mark_visible_f);
+    return rl_fov_calculate_ex(&fovmap, x, y, rl_fovmap_in_range_f, rl_fovmap_opaque_f, rl_fovmap_mark_visible_f);
 }
 
-void rl_fov_calculate_ex(void *context, unsigned int x, unsigned int y, RL_IsInRangeFun in_range_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f)
+RL_Status rl_fov_calculate_ex(void *context, unsigned int x, unsigned int y, RL_IsInRangeFun in_range_f, RL_IsOpaqueFun opaque_f, RL_MarkAsVisibleFun mark_visible_f)
 {
     int octant;
+    RL_Status status = RL_OK;
     RL_Slope from = { 1, 1 };
     RL_Slope to = { 0, 1 };
     mark_visible_f(x, y, context);
     for (octant=0; octant<8; ++octant) {
-        rl_fov_calculate_recursive(context, x, y, in_range_f, opaque_f, mark_visible_f, octant, 1, from, to);
+        RL_Status r = rl_fov_calculate_recursive(context, x, y, in_range_f, opaque_f, mark_visible_f, octant, 1, from, to);
+        if (r != RL_OK)
+            status = r;
     }
+
+    return status;
 }
 
 bool rl_fov_is_visible(const RL_FOV map, unsigned int x, unsigned int y)
