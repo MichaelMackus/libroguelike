@@ -10,30 +10,17 @@ RL_Byte random_points[WIDTH*HEIGHT];
 RL_Map map;
 RL_BSP *root;
 
-bool generate_map()
-{
-    RL_Status ret;
-    RL_MapgenConfigBSP config = RL_MAPGEN_BSP_DEFAULTS;
-    root = rl_bsp_create(WIDTH, HEIGHT);
-    assert(root != NULL);
-
-    map = rl_map_create(WIDTH, HEIGHT);
-    ret = rl_mapgen_bsp_recursive_split(root, config.room_max_width + config.room_padding*2, config.room_max_height + config.room_padding*2, config.max_splits);
-    if (ret != RL_OK) return ret;
-    ret = rl_mapgen_bsp_generate_rooms(root, map, config.room_min_width, config.room_max_width, config.room_min_height, config.room_max_height, config.room_padding);
-    if (ret != RL_OK) return ret;
-    ret = rl_mapgen_connect_corridors(map, root, config.draw_doors, config.draw_corridors);
-    if (ret != RL_OK) return ret;
-
-    return true;
-}
-
-int main()
+int main(void)
 {
     unsigned int i;
 
     srand(time(0));
-    if (!generate_map()) return 1;
+    map = rl_map_create(WIDTH, HEIGHT);
+    root = rl_bsp_create(WIDTH, HEIGHT);
+    if (rl_mapgen_bsp_ex(map, root, RL_MAPGEN_BSP_DEFAULTS) != RL_OK) {
+        fprintf(stderr, "Error during mapgen\n");
+        return 1;
+    }
 
     // random corridor tiles
     for (i=0; i<20; i++) {

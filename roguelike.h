@@ -276,6 +276,9 @@ typedef struct {
  */
 RL_Status rl_mapgen_bsp(RL_Map map, RL_MapgenConfigBSP config);
 
+/* Same as above function but preserves the BSP tree that contains the rooms */
+RL_Status rl_mapgen_bsp_ex(RL_Map map, RL_BSP *bsp, RL_MapgenConfigBSP config);
+
 /* Recursively split the BSP. Low level function used in rl_mapgen_bsp.
  * Returns true if the BSP was able to split at least once */
 RL_Status rl_mapgen_bsp_recursive_split(RL_BSP *root, unsigned int min_split_width, unsigned int min_split_height, unsigned int max_splits);
@@ -1392,12 +1395,20 @@ RL_Status rl_mapgen_bsp_generate_rooms(RL_BSP *node, RL_Map map, unsigned int ro
 RL_Status rl_mapgen_bsp(RL_Map map, RL_MapgenConfigBSP config)
 {
     RL_Status ret;
-    RL_BSP *root;
+    RL_BSP *root = rl_bsp_create(map.width, map.height);
+    ret = rl_mapgen_bsp_ex(map, root, config);
+    rl_bsp_destroy(root);
+
+    return ret;
+}
+
+RL_Status rl_mapgen_bsp_ex(RL_Map map, RL_BSP *root, RL_MapgenConfigBSP config)
+{
+    RL_Status ret;
     RL_ASSERT(map.tiles != NULL);
     if (map.tiles == NULL) return RL_ErrorNullParameter;
-    root = rl_bsp_create(map.width, map.height);
     RL_ASSERT(root != NULL);
-    if (root == NULL) return RL_ErrorMemory;
+    if (root == NULL) return RL_ErrorNullParameter;
     memset(map.tiles, RL_TileRock, sizeof(*map.tiles)*map.width*map.height);
 
     RL_ASSERT(root != NULL);
@@ -1417,8 +1428,6 @@ RL_Status rl_mapgen_bsp(RL_Map map, RL_MapgenConfigBSP config)
     /* if (config.use_secret_passages) { */
         /* TODO connect secret passages */
     /* } */
-
-    rl_bsp_destroy(root);
 
     return RL_OK;
 }
