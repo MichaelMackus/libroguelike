@@ -122,7 +122,7 @@
  *  RL_HEX_FLAT_TOP                   For hex grid pathfinding - set to 1 if you use flat top hexes, otherwise 0 for pointy top hexes.
  *  RL_HEX_ODD_OFFSET                 For hex grid pathfinding - set to 1 if you offset every *odd* row, otherwise set to 0 if you offset every *even* row.
  *  RL_FOV_SYMMETRIC                  Set this to 0 to disable symmetric FOV (defaults to 1)
- *  RL_MAX_RECURSION                  Maximum recursion (defaults to 100). This is used in rl_rng_map_* and FOV to limit recursion when fov_radius is large or -1 (unlimited).
+ *  RL_MAX_RECURSION                  Maximum recursion (defaults to 100). This is used in FOV to limit recursion when fov_radius is large or -1 (unlimited).
  *  RL_MAPGEN_BSP_RANDOMISE_ROOM_LOC  Set this to 0 to disable randomizing room locations within bsp (used in rl_mapgen_bsp - defaults to 1)
  *  RL_ENABLE_PATHFINDING             Set this to 0 to disable pathfinding functionality (defaults to 1)
  *  RL_ENABLE_FOV                     Set this to 0 to disable field of view functionality (defaults to 1)
