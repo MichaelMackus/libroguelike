@@ -77,5 +77,8 @@ int main(void)
         }
     }
 
+    rl_map_destroy(map);
+    rl_bsp_destroy(root);
+
     return 0;
 }

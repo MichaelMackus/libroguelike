@@ -22,7 +22,7 @@ jobs:
      run: make -B CC=clang
    - name: valgrind
      run:   |
-            examples=(automata bsp dijkstra floodfill heap line maze minimal path)
+            examples=(automata bsp dijkstra floodfill heap line maze minimal path rng)
             for f in "${examples[@]}"; do
               if ! ( ./valgrind ./examples/$f ); then
                 exit 1
