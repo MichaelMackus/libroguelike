@@ -743,10 +743,6 @@ unsigned int rl_rng_generate(unsigned int min, unsigned int max);
 /* Returns RL_ErrorNotFound if tile not in map */
 RL_Status rl_rng_map_point(RL_Map map, RL_Byte t, unsigned int *x, unsigned int *y);
 
-/* Return a random point matching the passed function */
-/* Returns RL_ErrorNotFound if tile not in map */
-RL_Status rl_rng_map_point_matching(RL_Map map, bool (*f)(const RL_Map map, unsigned int x, unsigned int y), unsigned int *x, unsigned int *y);
-
 /* Return a random passable point for a specific tile within the map */
 /* Returns RL_ErrorNotFound if tile not in map */
 RL_Status rl_rng_map_passable(RL_Map map, unsigned int *x, unsigned int *y);
@@ -754,6 +750,16 @@ RL_Status rl_rng_map_passable(RL_Map map, unsigned int *x, unsigned int *y);
 /* Return center point within a random room in the BSP */
 /* Returns RL_ErrorNotFound if tile not in map */
 RL_Status rl_rng_map_room(RL_Map map, RL_BSP *bsp, unsigned int *x, unsigned int *y);
+
+typedef bool (*RL_MatchesFun)(const RL_Map map, void *context, unsigned int x, unsigned int y);
+
+/* Return a random point matching the passed function */
+/* Returns RL_ErrorNotFound if tile not in map */
+RL_Status rl_rng_map_point_matching(RL_Map map, void *context, RL_MatchesFun f, unsigned int *x, unsigned int *y);
+
+/* Return center point within a random room in the BSP matching the passed function */
+/* Returns RL_ErrorNotFound if tile not in map */
+RL_Status rl_rng_map_room_matching(RL_Map map, RL_BSP *bsp, void *context, RL_MatchesFun f, unsigned int *x, unsigned int *y);
 
 /**
  * Saving & Loading helper functions - to use these make sure to open the file beforehand in binary mode.
@@ -2170,7 +2176,7 @@ void *rl_heap_peek(RL_Heap *h)
     }
 }
 
-RL_Status rl_rng_map_point_matching(RL_Map map, bool (*f)(const RL_Map map, unsigned int x, unsigned int y), unsigned int *dx, unsigned int *dy)
+RL_Status rl_rng_map_point_matching(RL_Map map, void *context, bool (*f)(const RL_Map map, void *context, unsigned int x, unsigned int y), unsigned int *dx, unsigned int *dy)
 {
     unsigned int count, x, y;
 
@@ -2187,7 +2193,7 @@ RL_Status rl_rng_map_point_matching(RL_Map map, bool (*f)(const RL_Map map, unsi
     count = 0;
     for (x=0; x<map.width; x++) {
         for (y=0; y<map.height; y++) {
-            if (f(map, x, y)) {
+            if (f == NULL || f(map, context, x, y)) {
                 count++;
                 if (RL_RNG_F(0, count - 1) == 0) {
                     *dx = x;
@@ -2200,58 +2206,64 @@ RL_Status rl_rng_map_point_matching(RL_Map map, bool (*f)(const RL_Map map, unsi
     return count > 0 ? RL_OK : RL_ErrorNotFound;
 }
 
+bool rl_rng_map_is_tile(RL_Map map, void *context, unsigned int x, unsigned int y)
+{
+    RL_Byte *t = (RL_Byte*) context;
+    RL_ASSERT(t != NULL);
+    return map.tiles[x+y*map.width] == *t;
+}
 RL_Status rl_rng_map_point(RL_Map map, RL_Byte t, unsigned int *dx, unsigned int *dy)
 {
-    unsigned int count, x, y;
-
-    RL_ASSERT(map.tiles != NULL);
-    if (map.tiles == NULL) {
-        return RL_ErrorNullParameter;
-    }
-    RL_ASSERT(dx != NULL && dy != NULL);
-    if (dx == NULL || dy == NULL) {
-        return RL_ErrorNullParameter;
-    }
-
-    /* simple reservoir sampling algorithm (k == 1) */
-    count = 0;
-    for (x=0; x<map.width; x++) {
-        for (y=0; y<map.height; y++) {
-            if (rl_map_tile_is(map, x, y, t)) {
-                count++;
-                if (RL_RNG_F(0, count - 1) == 0) {
-                    *dx = x;
-                    *dy = y;
-                }
-            }
-        }
-    }
-
-    return count > 0 ? RL_OK : RL_ErrorNotFound;
+    return rl_rng_map_point_matching(map, &t, rl_rng_map_is_tile, dx, dy);
 }
 
+bool rl_rng_map_is_passable(RL_Map map, void *context, unsigned int x, unsigned int y)
+{
+    RL_UNUSED(context);
+    return RL_PASSABLE_F(map, x, y);
+}
 RL_Status rl_rng_map_passable(RL_Map map, unsigned int *x, unsigned int *y)
 {
-    return rl_rng_map_point_matching(map, RL_PASSABLE_F, x, y);
+    return rl_rng_map_point_matching(map, NULL, rl_rng_map_is_passable, x, y);
 }
 
 RL_Status rl_rng_map_room(RL_Map map, RL_BSP *bsp, unsigned int *x, unsigned int *y)
 {
+    return rl_rng_map_room_matching(map, bsp, NULL, NULL, x, y);
+}
+
+RL_Status rl_rng_map_room_matching(RL_Map map, RL_BSP *bsp, void *context, bool (*f)(const RL_Map map, void *context, unsigned int x, unsigned int y), unsigned int *x, unsigned int *y)
+{
     unsigned int r, i;
-    size_t count;
+    size_t leaf_count, match_count;
     RL_BSP *leaf;
 
     RL_ASSERT(bsp != NULL && map.tiles != NULL && x != NULL && y != NULL);
     if (bsp == NULL || map.tiles == NULL || x == NULL || y == NULL) return RL_ErrorNullParameter;
 
-    count = rl_bsp_leaf_count(bsp);
-    RL_ASSERT(count > 0);
+    leaf_count = rl_bsp_leaf_count(bsp);
+    RL_ASSERT(leaf_count > 0);
 
     /* find the first leaf */
     leaf = bsp;
     while (leaf->left != NULL) leaf = leaf->left;
 
-    r = rl_rng_generate(0, count - 1);
+    /* generate random room matching given function */
+    match_count = 0;
+    for (i=0; i<leaf_count; i++) {
+        if (f == NULL || f(map, context, *x, *y)) {
+            match_count++;
+            if (RL_RNG_F(0, match_count - 1) == 0) {
+                r = i;
+            }
+        }
+    }
+
+    if (match_count == 0) {
+        return RL_ErrorNotFound;
+    }
+
+    /* find the picked leaf */
     for (i=0; i<r; i++) {
         leaf = rl_bsp_next_leaf(leaf);
         RL_ASSERT(leaf != NULL);

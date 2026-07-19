@@ -30,8 +30,9 @@ static RL_Point player;
 static RL_Point downstair;
 
 // ensure downstair tile not on player
-bool tile_is_valid_stair(const RL_Map map, unsigned int x, unsigned int y)
+bool tile_is_valid_stair(const RL_Map map, void *context, unsigned int x, unsigned int y)
 {
+    RL_UNUSED(context);
     return rl_map_tile_is(map, x, y, RL_TileRoom) && (x != player.x || y != player.y);
 }
 
@@ -69,7 +70,7 @@ void generate_map(void)
     player.y = y;
 
     // generate a random downstair tile
-    ret = rl_rng_map_point_matching(map, tile_is_valid_stair, &x, &y);
+    ret = rl_rng_map_point_matching(map, NULL, tile_is_valid_stair, &x, &y);
     if (ret != RL_OK) {
         endwin();
         fprintf(stderr, "Error %s - cannot find starting tile for downstair!\n", rl_status_str(ret));
