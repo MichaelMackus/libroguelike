@@ -2232,14 +2232,14 @@ RL_Status rl_rng_map_room(RL_Map map, RL_BSP *bsp, unsigned int *x, unsigned int
     return rl_rng_map_room_matching(map, bsp, NULL, NULL, x, y);
 }
 
-RL_Status rl_rng_map_room_matching(RL_Map map, RL_BSP *bsp, void *context, bool (*f)(const RL_Map map, void *context, unsigned int x, unsigned int y), unsigned int *x, unsigned int *y)
+RL_Status rl_rng_map_room_matching(RL_Map map, RL_BSP *bsp, void *context, bool (*f)(const RL_Map map, void *context, unsigned int x, unsigned int y), unsigned int *dx, unsigned int *dy)
 {
-    unsigned int r, i;
+    unsigned int i, x, y;
     size_t leaf_count, match_count;
     RL_BSP *leaf;
 
-    RL_ASSERT(bsp != NULL && map.tiles != NULL && x != NULL && y != NULL);
-    if (bsp == NULL || map.tiles == NULL || x == NULL || y == NULL) return RL_ErrorNullParameter;
+    RL_ASSERT(bsp != NULL && map.tiles != NULL && dx != NULL && dy != NULL);
+    if (bsp == NULL || map.tiles == NULL || dx == NULL || dy == NULL) return RL_ErrorNullParameter;
 
     leaf_count = rl_bsp_leaf_count(bsp);
     RL_ASSERT(leaf_count > 0);
@@ -2250,27 +2250,22 @@ RL_Status rl_rng_map_room_matching(RL_Map map, RL_BSP *bsp, void *context, bool 
 
     /* generate random room matching given function */
     match_count = 0;
-    for (i=0; i<leaf_count; i++) {
-        if (f == NULL || f(map, context, *x, *y)) {
+    for (i=0; i<leaf_count; i++, leaf = rl_bsp_next_leaf(leaf)) {
+        RL_ASSERT(leaf != NULL && rl_bsp_is_leaf(leaf));
+        if (!rl_bsp_find_room(map, leaf, &x, &y)) {
+            continue;
+        }
+        if (f == NULL || f(map, context, x, y)) {
             match_count++;
             if (RL_RNG_F(0, match_count - 1) == 0) {
-                r = i;
+                *dx = x;
+                *dy = y;
             }
         }
     }
+    RL_ASSERT(match_count > 0);
 
     if (match_count == 0) {
-        return RL_ErrorNotFound;
-    }
-
-    /* find the picked leaf */
-    for (i=0; i<r; i++) {
-        leaf = rl_bsp_next_leaf(leaf);
-        RL_ASSERT(leaf != NULL);
-    }
-    RL_ASSERT(leaf != NULL);
-
-    if (!rl_bsp_find_room(map, leaf, x, y)) {
         return RL_ErrorNotFound;
     }
 
