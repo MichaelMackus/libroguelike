@@ -3097,7 +3097,9 @@ RL_Status rl_fov_calculate_recursive(void *map, unsigned int origin_x, unsigned 
             }
         }
 
-        if(wasOpaque != 0) break; /* if the column ended in a clear tile, continue processing the current sector */
+        if (wasOpaque != 0) {
+            return RL_OK; /* if the column ended in a clear tile, continue processing the current sector */
+        }
     }
 
     return RL_ErrorRecursion;

@@ -104,7 +104,9 @@ int main(int argc, char **argv)
     RL_Path *player_path = NULL; // path for mouse movement
     while (!quit) {
         // regenerate FOV
-        rl_fov_calculate(fov, map, player.x, player.y, 16);
+        if (rl_fov_calculate(fov, map, player.x, player.y, 16) != RL_OK) {
+            assert(false && "Error calculating FOV");
+        }
 
         // draw the map, only drawing previously seen tiles or tiles within the FOV
         for (y = 0; y < map.height; ++y) {
