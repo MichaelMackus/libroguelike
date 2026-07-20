@@ -3117,7 +3117,7 @@ void rl_fovmap_mark_visible_f(unsigned int x, unsigned int y, void *context)
 {
     struct RL_FOVMap *map = (struct RL_FOVMap*) context;
     if (rl_map_in_bounds(map->map, x, y)) {
-        map->fov.visibility[x + y*map->map.width] = RL_TileVisible;
+        map->fov.visibility[x + y*map->fov.width] = RL_TileVisible;
     }
 }
 
